@@ -6,12 +6,9 @@
 
 import chalk from 'chalk'
 import { isOk } from '@mks2508/no-throw'
-import {
-  getConfigService,
-  getGitHubService,
-  getCoolifyService,
-  ConfigService,
-} from '@mks2508/mks-bot-father'
+import { getConfigService, ConfigService } from '../../services/config.service.js'
+import { getGitHubService } from '../../services/github.service.js'
+import { getCoolifyService } from '../../services/coolify.service.js'
 
 export async function handleStatus(): Promise<void> {
   const config = getConfigService()

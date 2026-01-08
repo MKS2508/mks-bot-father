@@ -7,7 +7,7 @@
 import ora from 'ora'
 import chalk from 'chalk'
 import { isOk, isErr } from '@mks2508/no-throw'
-import { getCoolifyService } from '@mks2508/mks-bot-father'
+import { getCoolifyService } from '../../services/coolify.service.js'
 
 interface IDeployOptions {
   force?: boolean

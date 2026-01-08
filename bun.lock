@@ -20,33 +20,21 @@
         "prettier-plugin-organize-imports": "^4.1.0",
       },
     },
-    "apps/cli": {
-      "name": "@mks2508/mks-bot-father-cli",
-      "version": "0.1.0",
-      "bin": {
-        "mks-bot-father": "./dist/cli.js",
-        "mbf": "./dist/cli.js",
-      },
-      "dependencies": {
-        "@mks2508/better-logger": "^4.0.0",
-        "@mks2508/mks-bot-father": "workspace:*",
-        "chalk": "^5.4.1",
-        "commander": "^14.0.0",
-        "ora": "^8.0.0",
-      },
-      "devDependencies": {
-        "@types/node": "^22.10.5",
-        "typescript": "^5.9.0",
-      },
-    },
     "core/packages/main": {
       "name": "@mks2508/mks-bot-father",
       "version": "0.1.0",
+      "bin": {
+        "mks-bot-father": "./dist/bin/cli.js",
+        "mbf": "./dist/bin/cli.js",
+      },
       "dependencies": {
         "@mks2508/better-logger": "^4.0.0",
         "@mks2508/no-throw": "^0.1.0",
         "@mks2508/telegram-bot-manager": "^0.1.1",
         "arktype": "^2.1.29",
+        "chalk": "^5.4.1",
+        "commander": "^14.0.0",
+        "ora": "^8.0.0",
       },
       "devDependencies": {
         "@types/node": "^22.10.5",
@@ -136,8 +124,6 @@
     "@mks2508/better-logger": ["@mks2508/better-logger@4.0.0", "", { "dependencies": { "chalk": "^5.6.2" } }, "sha512-39PYkAKg7kC0ncPjcN5zAwTsLIS+iXoL4294gl3Cm4OAI6sAT7YJ+RccD42Ve5ybRC/TGgJnD0AUH5M26w0pWA=="],
 
     "@mks2508/mks-bot-father": ["@mks2508/mks-bot-father@workspace:core/packages/main"],
-
-    "@mks2508/mks-bot-father-cli": ["@mks2508/mks-bot-father-cli@workspace:apps/cli"],
 
     "@mks2508/no-throw": ["@mks2508/no-throw@0.1.0", "", {}, "sha512-/CI8FqiO3oLw66XIQ07mw13b6PDNh1vit0cGzUBLq5MfJUTKDU0yaKFE0l9CqSpe6xv4n4+z4RWEytP5xePKZQ=="],
 

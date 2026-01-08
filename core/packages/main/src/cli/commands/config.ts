@@ -6,7 +6,7 @@
 
 import chalk from 'chalk'
 import { isOk } from '@mks2508/no-throw'
-import { getConfigService, CONFIG_FILE } from '@mks2508/mks-bot-father'
+import { getConfigService, CONFIG_FILE } from '../../services/config.service.js'
 
 export async function handleConfig(
   action: string,

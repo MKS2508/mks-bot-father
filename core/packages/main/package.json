@@ -6,6 +6,10 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "mks-bot-father": "./dist/bin/cli.js",
+    "mbf": "./dist/bin/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,7 +23,9 @@
   ],
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "tsgo -p tsconfig.build.json",
+    "build": "bun run build:lib && bun run build:cli",
+    "build:lib": "tsgo -p tsconfig.build.json",
+    "build:cli": "bun build ./src/cli/index.ts --outfile ./dist/bin/cli.js --target node --minify",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint",
     "test": "bun test"
@@ -48,7 +54,10 @@
     "@mks2508/telegram-bot-manager": "^0.1.1",
     "@mks2508/better-logger": "^4.0.0",
     "@mks2508/no-throw": "^0.1.0",
-    "arktype": "^2.1.29"
+    "arktype": "^2.1.29",
+    "commander": "^14.0.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

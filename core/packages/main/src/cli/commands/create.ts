@@ -7,7 +7,8 @@
 import ora from 'ora'
 import chalk from 'chalk'
 import { isErr } from '@mks2508/no-throw'
-import { getPipeline, type IPipelineOptions } from '@mks2508/mks-bot-father'
+import { getPipeline } from '../../pipeline/index.js'
+import type { IPipelineOptions } from '../../types/index.js'
 
 interface ICreateOptions {
   description?: string
