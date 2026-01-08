@@ -65,12 +65,12 @@ async function cleanupOrphanSessions(): Promise<void> {
 async function createSession(): Promise<void> {
   console.log(`${c.cyan}Creating tmux session '${SESSION_NAME}'...${c.reset}`)
 
-  // Configure tmux globally for OSC 8 hyperlinks support (must be before creating session)
-  await $`tmux set-option -g allow-passthrough on`.quiet()
-  await $`tmux set-option -ga terminal-features "*:hyperlinks"`.quiet()
-
   // Create new detached session with first command (TUI with watch)
   await $`tmux new-session -d -s ${SESSION_NAME} -c ${PROJECT_DIR} "bun run --watch src/index.ts; read"`.quiet()
+
+  // Configure tmux globally for OSC 8 hyperlinks support (after session exists)
+  await $`tmux set-option -g allow-passthrough on`.quiet()
+  await $`tmux set-option -ga terminal-features "*:hyperlinks"`.quiet()
 
   // Split window horizontally (pane 1 at bottom, 30%) and run log viewer with watch
   // Pass pane width via environment variable for proper layout
