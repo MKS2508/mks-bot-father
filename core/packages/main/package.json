@@ -28,7 +28,10 @@
     "build:cli": "bun build ./src/cli/index.ts --outfile ./dist/bin/cli.js --target node --minify",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint",
-    "test": "bun test"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "keywords": [
     "telegram",
@@ -61,7 +64,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "typescript": "^5.9.0"
+    "@vitest/coverage-v8": "^4.0.16",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.16"
   },
   "engines": {
     "node": ">=18.0.0"

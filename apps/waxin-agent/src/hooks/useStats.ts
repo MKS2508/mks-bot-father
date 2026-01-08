@@ -5,6 +5,7 @@
  */
 
 import { statsLogger } from '../lib/logger.js'
+import { log } from '../lib/json-logger.js'
 import type { AgentStats } from '../types.js'
 
 /**
@@ -43,6 +44,23 @@ export function updateStats(stats: AgentStats): void {
     `Stats updated: ${stats.totalTokens} tokens, $${stats.totalCostUsd.toFixed(4)}, ` +
     `${stats.toolCallsCount} tools, ${stats.durationMs}ms`
   )
+
+  log.withMetrics(
+    'STATS',
+    'Stats updated',
+    {
+      duration_ms: stats.durationMs,
+      tokens: { in: stats.inputTokens, out: stats.outputTokens },
+      cost_usd: stats.totalCostUsd,
+      tool_count: stats.toolCallsCount
+    },
+    {
+      sessionId: stats.sessionId,
+      totalTokens: stats.totalTokens,
+      errorsCount: stats.errorsCount,
+      historySize: statsHistory.length
+    }
+  )
 }
 
 /**
@@ -63,9 +81,11 @@ export function getStatsHistory(): StatsHistoryEntry[] {
  * Clear stats.
  */
 export function clearStats(): void {
+  const previousSize = statsHistory.length
   currentStats = null
   statsHistory = []
   statsLogger.info('Stats cleared')
+  log.info('STATS', 'Stats cleared', { previousSize })
 }
 
 /**

@@ -156,11 +156,11 @@ Steps:
 `,
 
   deployBot: (botName: string, coolifyUuid: string) => `
-Deploy the bot "${botName}" to Coolify.
+Deploy the bot "${botName}" to Coolify (application UUID: ${coolifyUuid}).
 
 Steps:
 1. Verify the repository is ready (tests pass, build works)
-2. Check Coolify application status
+2. Check Coolify application status for ${coolifyUuid}
 3. Set required environment variables (BOT_TOKEN, etc.)
 4. Trigger deployment
 5. Verify deployment succeeded

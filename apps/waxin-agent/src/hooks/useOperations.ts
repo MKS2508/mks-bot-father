@@ -5,6 +5,7 @@
  */
 
 import { OperationQueue, getGlobalQueue, toolsLogger } from '../lib/index.js'
+import { log } from '../lib/json-logger.js'
 import type { BackgroundOperation, QueueConfig, QueueStats } from '../lib/operation-queue.js'
 
 /**
@@ -21,6 +22,7 @@ export function initOperations(config?: QueueConfig): void {
   if (!queue) {
     queue = getGlobalQueue(config)
     toolsLogger.info('Operations initialized')
+    log.info('OPS', 'Operations initialized', { config })
   }
 }
 
@@ -33,6 +35,12 @@ export function enqueueOperation(tool: string, input: unknown): string {
   }
 
   const id = queue!.enqueue(tool, input)
+  log.info('OPS', 'Operation enqueued', {
+    id,
+    tool,
+    inputType: typeof input,
+    inputKeys: input && typeof input === 'object' ? Object.keys(input as object) : []
+  })
   updateStatus()
   return id
 }
@@ -46,6 +54,7 @@ export function cancelOperation(id: string): boolean {
   }
 
   const result = queue!.cancel(id)
+  log.info('OPS', 'Operation cancel requested', { id, success: result })
   updateStatus()
   return result
 }
@@ -141,6 +150,7 @@ function updateStatus(): void {
  */
 export function enableAutoProcessing(intervalMs = 1000): void {
   if (autoProcessInterval) {
+    log.debug('OPS', 'Auto-processing already enabled')
     return // Already enabled
   }
 
@@ -153,6 +163,7 @@ export function enableAutoProcessing(intervalMs = 1000): void {
   }, intervalMs)
 
   toolsLogger.info('Auto-processing enabled')
+  log.info('OPS', 'Auto-processing enabled', { intervalMs })
 }
 
 /**
@@ -163,6 +174,7 @@ export function disableAutoProcessing(): void {
     clearInterval(autoProcessInterval)
     autoProcessInterval = null
     toolsLogger.info('Auto-processing disabled')
+    log.info('OPS', 'Auto-processing disabled')
   }
 }
 
@@ -174,9 +186,11 @@ export function clearCompleted(): void {
     return
   }
 
+  const stats = queue!.getStats()
   queue!.clearCompleted()
   updateStatus()
   toolsLogger.info('Cleared completed operations')
+  log.info('OPS', 'Cleared completed operations', { clearedCount: stats.completed })
 }
 
 /**
@@ -187,9 +201,13 @@ export function clearAllOperations(): void {
     return
   }
 
+  const stats = queue!.getStats()
   queue!.clearAll()
   operations = []
   toolsLogger.info('Cleared all operations')
+  log.info('OPS', 'Cleared all operations', {
+    totalCleared: stats.pending + stats.running + stats.completed
+  })
 }
 
 /**
@@ -246,4 +264,5 @@ export function cleanupOperations(): void {
   disableAutoProcessing()
   clearAllOperations()
   toolsLogger.info('Operations cleaned up')
+  log.info('OPS', 'Operations cleaned up')
 }

@@ -270,7 +270,8 @@ function formatMetrics(metrics: LogMetrics): string {
 function stripAnsi(str: string): string {
   // Strip ANSI color codes
   let result = str.replace(/\x1b\[[0-9;]*m/g, '')
-  // Strip OSC 8 hyperlink sequences
+  // Strip OSC 8 hyperlink sequences with BEL (\x07) or ST (\x1b\\)
+  result = result.replace(/\x1b\]8;;[^\x07]*\x07/g, '')
   result = result.replace(/\x1b\]8;;[^\x1b]*\x1b\\/g, '')
   return result
 }
@@ -304,9 +305,10 @@ function createFileLink(loc: string): string {
   const url = `webstorm://open?file=${fullPath}&line=${line}`
   const displayText = loc
 
-  // OSC 8 hyperlink format for clickable terminal links
-  const osc8Start = `\x1b]8;;${url}\x1b\\`
-  const osc8End = `\x1b]8;;\x1b\\`
+  // OSC 8 hyperlink format using BEL (\x07) terminator - more compatible
+  // Format: \e]8;;URL\aTEXT\a
+  const osc8Start = `\x1b]8;;${url}\x07`
+  const osc8End = `\x1b]8;;\x07`
 
   return `${osc8Start}${chalk.hex('#b381c5').underline(displayText)}${osc8End}`
 }
@@ -358,13 +360,30 @@ function formatLogLine(line: string): string | null {
     }
 
     // Right side: caller location (clickable) + timestamp
-    const locStr = entry.loc ? createFileLink(entry.loc) : ''
-    const timeStr = chalk.hex('#36f9f6')(time)
-    const rightPart = locStr ? `${locStr} ${chalk.dim('│')} ${timeStr}` : timeStr
+    // Normalize to consistent width by padding visible text BEFORE wrapping in OSC 8
+    const LOC_WIDTH = 25 // chars reserved for location
+    const TIME_WIDTH = 12 // chars for timestamp "HH:MM:SS.mmm"
+    const SEP = '│ '
+    const RIGHT_PART_WIDTH = LOC_WIDTH + 1 + SEP.length + TIME_WIDTH // 25 + 1 + 2 + 12 = 40
 
-    // Calculate lengths for dot fill
+    let rightPart = ''
+
+    if (entry.loc) {
+      // Pad the visible text BEFORE wrapping in OSC 8 link
+      const locPaddedVisible = entry.loc.padEnd(LOC_WIDTH, ' ')
+      const locLink = createFileLink(locPaddedVisible)
+      const timeStr = chalk.hex('#36f9f6')(time)
+      rightPart = `${locLink}${chalk.dim(SEP)}${timeStr}`
+    } else {
+      // No location - just spaces
+      const locPadded = ' '.repeat(LOC_WIDTH)
+      const timeStr = chalk.hex('#36f9f6')(time)
+      rightPart = `${locPadded}${chalk.dim(SEP)}${timeStr}`
+    }
+
+    // For dot calculation, use fixed width since right part should always be consistent
     const leftLen = visibleLength(leftPart) + (metricsStr ? visibleLength(metricsStr) + 1 : 0)
-    const rightLen = visibleLength(rightPart)
+    const rightLen = RIGHT_PART_WIDTH
 
     // Create dot-filled line
     const dots = createDots(leftLen, rightLen)
