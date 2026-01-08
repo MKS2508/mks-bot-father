@@ -1,164 +1,253 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
+
+## Project Overview
+
+**@mks2508/mks-bot-father** is a TypeScript CLI and library for automating the complete Telegram bot creation and deployment pipeline:
+
+1. **BotFather Automation** - Creates bots via @BotFather using telegram-bot-manager
+2. **GitHub Integration** - Creates repositories and pushes scaffolded code
+3. **Coolify Deployment** - Deploys to Coolify with environment variables
+
+### Dual Purpose
+
+- **CLI**: `npx @mks2508/mks-bot-father create my-bot --full`
+- **Library**: `import { Pipeline } from '@mks2508/mks-bot-father'`
 
 ## CRITICAL: Development Guidelines
 
 **ALL development MUST follow the rules in `MUST-FOLLOW-GUIDELINES.md`**
 
-Before making ANY code changes, read and understand:
-- `/MUST-FOLLOW-GUIDELINES.md` - Source of truth for coding standards
+**Key Rules:**
+- **arktype** for schema validation (not zod)
+- **@mks2508/better-logger** for logging (NEVER console.log in library code)
+- **JSDoc** on all public exports
+- **Interface prefix `I`** (e.g., `IPipelineOptions`)
 
-**Key Rules Overview:**
-- JSDoc completo profesional obligatorio
-- Result pattern siempre (mks2508/utils/result)
-- Logging via mks2508/utils/logger (NUNCA console.log)
-- Validacion con Arktype
-- Nomenclatura: prefijo I para interfaces
-- Estructura: src/types/ y src/utils/ con barrel exports
-- Async/await preferido sobre Promise chaining
+## Package Structure
 
-## Monorepo Stack
-
-This is a Bun-based monorepo for npm packages.
-
-**Core Stack:**
-- **Runtime**: Bun (package manager & runtime)
-- **Workspaces**: Bun workspaces (`workspace:*` protocol)
-- **Bundling**: Rolldown (`rolldown` v1.0.0-beta.58)
-- **Linting**: Oxlint (OxC-based linter)
-- **Formatting**: Prettier with `prettier-plugin-organize-imports`
-- **Type Checking**: TSGO (@typescript/native-preview v7.0.0-dev)
-- **Validation**: Arktype (schema validation)
-- **Versioning**: Changesets
+```
+mks-bot-father/
+├── core/packages/main/           # Main package: @mks2508/mks-bot-father
+│   ├── src/
+│   │   ├── index.ts              # Public exports
+│   │   ├── types.ts              # Types with arktype schemas
+│   │   ├── pipeline.ts           # Pipeline orchestrator
+│   │   ├── config/index.ts       # ConfigManager
+│   │   ├── github/index.ts       # GitHubManager
+│   │   ├── coolify/index.ts      # CoolifyManager
+│   │   └── cli/
+│   │       ├── index.ts          # CLI entry point
+│   │       └── commands/         # create, deploy, config
+│   ├── dist/
+│   │   ├── *.js                  # Library (ESM)
+│   │   ├── *.d.ts                # Type declarations
+│   │   └── bin/cli.js            # Bundled CLI (~1.7MB)
+│   ├── package.json
+│   └── tsconfig.build.json
+├── package.json                   # Root workspace config
+└── tsconfig.json                  # Base TypeScript config
+```
 
 ## Commands
 
 ```bash
-# Development - all workspaces
-bun run dev          # Start dev mode for all packages
+# Root level
+bun install
+bun run build                     # Build library + CLI
+bun run typecheck                 # Type check with tsgo
+bun run lint                      # Lint with oxlint
 
-# Build - all workspaces
-bun run build        # Build all packages
+# Package level (core/packages/main)
+bun run build                     # tsgo + bun build CLI
+bun run build:lib                 # Library only
+bun run build:cli                 # CLI bundle only
 
-# Type checking
-bun run typecheck    # Type check all packages
-
-# Linting (Oxlint only - no ESLint)
-bun run lint         # Run oxlint
-bun run lint:fix     # Auto-fix oxlint issues
-
-# Formatting (Prettier)
-bun run format       # Format all files
-bun run format:check # Check formatting
-
-# Clean everything
-bun run clean        # Remove node_modules, dist, .turbo
-
-# Changesets (versioning)
-bun run changeset              # Create a changeset
-bun run changeset:version      # Apply changesets and bump versions
-bun run changeset:publish      # Publish packages to npm
+# CLI usage
+node dist/bin/cli.js --help
+mbf create my-bot --full
+mbf status
 ```
 
-## Monorepo Structure
+## Build Configuration
 
-```
-├── core/
-│   └── packages/
-│       ├── utils/              # Shared utilities package
-│       │   ├── src/
-│       │   │   ├── logger.ts   # Logging wrapper (@mks2508/better-logger)
-│       │   │   ├── result.ts   # Result wrapper (@mks2508/no-throw)
-│       │   │   └── index.ts    # Barrel export
-│       │   ├── rolldown.config.ts
-│       │   └── package.json
-│       └── main/               # Main library package
-│           ├── src/
-│           └── package.json    # Depends on utils via workspace:*
-└── apps/
-    └── example/                # Example app
-        └── package.json        # Depends on utils via workspace:*
-```
+### Build Process
 
-**Workspace Pattern:**
-- Packages in `core/packages/*` and `apps/*` are auto-discovered
-- Internal dependencies use `"mks2508/package": "workspace:*"`
-- Root `package.json` defines shared devDependencies
+- **build:lib**: `tsgo -p tsconfig.build.json` - Compiles library + types to `dist/`
+- **build:cli**: `bun build ./src/cli/index.ts --outfile ./dist/bin/cli.js --target node --minify`
 
-## Shared Utilities Pattern
+The CLI is bundled separately to include all dependencies in a single file.
 
-The `mks2508/utils` package provides shared wrappers:
+### tsconfig.build.json
 
-### Logger (`mks2508/utils/logger`)
-
-Wrapper around `@mks2508/better-logger` with preset configured:
-```typescript
-import { createLogger } from 'mks2508/utils/logger';
-
-const log = createLogger('ComponentName');
-log.info('Message');
-log.success('Success!');
-```
-
-### Result (`mks2508/utils/result`)
-
-Wrapper around `@mks2508/no-throw` with domain-specific error codes:
-```typescript
-import { ok, tryCatch, createAppError, type Result } from 'mks2508/utils/result';
-
-const result: Result<string> = ok('success');
-const error = createAppError('NetworkError', 'Failed to fetch');
-```
-
-## Tool Configuration Files
-
-### Root TypeScript/TSGO (`tsconfig.json`)
-- Target: ES2022, Module: ESNext
-- Strict mode enabled
-- `moduleResolution: "bundler"`
-- Key options: `verbatimModuleSyntax: true`, `declaration: true`
-- Compiler: TSGO (@typescript/native-preview) for faster type checking
-
-### Validation (Arktype)
-Schema validation using Arktype for performance:
-```typescript
-import { type } from 'arktype';
-
-export const OptionsSchema = type({
-  url: 'string',
-  timeout: 'number.optional',
-});
-
-const result = OptionsSchema(options);
-if (result instanceof type.errors) {
-  return err(result.summary());
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": true
+  },
+  "exclude": ["src/cli/**/*"]  // CLI is bundled separately
 }
 ```
 
-### Oxlint (`oxlint.json`)
-- Categories: `correctness`, `suspicious`, `perf`, `style` -> "warn"
-- `restriction` -> "off"
-- Env: `node`, `es2021`
+## Core Architecture
 
-### Prettier (`.prettierrc`)
-- 100 char width, 2 spaces, single quotes
-- Plugin: `prettier-plugin-organize-imports`
-- Trailing commas: es5
+### Pipeline (`pipeline.ts`)
 
-## Workspace Dependencies
+Orchestrates the full automation flow:
 
-When adding a new package dependency:
-
-1. **For shared packages**: Add to appropriate `core/packages/*/package.json`
-2. **For workspace deps**: Use `"mks2508/name": "workspace:*"`
-3. **For external deps**: Add to root `package.json` devDependencies if used across multiple packages
-
-```bash
-bun install              # Install/resolves workspace dependencies
+```typescript
+class Pipeline {
+  async run(options: IPipelineOptions): Promise<IPipelineResult> {
+    // Step 1: BotFather automation (telegram-bot-manager)
+    // Step 2: Scaffold project with bunspace
+    // Step 3: Create GitHub repository
+    // Step 4: Deploy to Coolify
+  }
+}
 ```
 
-## Build Output Patterns
+### ConfigManager (`config/index.ts`)
 
-- **Rolldown**: Generates JS + sourcemaps, separate `tsc --emitDeclarationOnly` for types
-- Always ESM-first, CJS as optional compatibility layer
+Manages persistent configuration stored in `~/.config/mks-bot-father/config.json`:
+
+```typescript
+const config = getConfigManager()
+config.set('github.token', 'ghp_xxx')
+config.getTelegramCredentials()
+await config.resolveGitHubToken() // Config -> gh CLI -> env
+```
+
+### GitHubManager (`github/index.ts`)
+
+- `createRepo()` - Create new repository
+- `createRepoFromTemplate()` - Create from template
+- `pushToRepo()` - Initialize git and push
+
+### CoolifyManager (`coolify/index.ts`)
+
+- `createApplication()` - Create app from GitHub repo
+- `setEnvironmentVariables()` - Set env vars
+- `deploy()` - Trigger deployment
+
+## Key Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `@mks2508/telegram-bot-manager` | BotFather automation (programmatic) |
+| `@mks2508/better-logger` | Styled logging |
+| `arktype` | Schema validation |
+| `commander` | CLI framework |
+| `ora` | Spinners |
+| `chalk` | Colors |
+
+## telegram-bot-manager Integration
+
+**CRITICAL**: Use the library programmatically, NOT via spawn.
+
+### Correct Usage
+
+```typescript
+import { BotFatherManager, BootstrapClient, EnvManager } from '@mks2508/telegram-bot-manager'
+
+// Connect to Telegram
+const client = new BootstrapClient({ apiId, apiHash })
+await client.ensureAuthorized()
+
+// Create bot via BotFather
+const botFather = new BotFatherManager(client)
+const result = await botFather.createBot({ botName, botUsername })
+
+// IBotCreationResult is a simple object, NOT a Result type
+if (!result.success) {
+  console.error(result.error)
+  return
+}
+
+// Save to EnvManager
+const envManager = new EnvManager()
+await envManager.createEnv(result.botUsername, 'local', {
+  botToken: result.botToken,
+  mode: 'polling',
+})
+
+await client.disconnect()
+```
+
+### IBotCreationResult
+
+This is a simple object, NOT a Result type:
+
+```typescript
+interface IBotCreationResult {
+  success: boolean
+  botToken?: string
+  botUsername?: string
+  error?: string
+}
+
+// Correct
+if (!result.success) { ... }
+
+// WRONG - this is not a Result type
+if (result.isErr()) { ... }
+```
+
+### EnvManager Methods
+
+```typescript
+// Available methods
+await envManager.createEnv(username, environment, config)  // Use this
+await envManager.readEnv(username, environment)
+await envManager.updateEnv(username, environment, updates)
+await envManager.listBots()
+await envManager.setActiveBot(username)
+
+// WRONG - saveBot() does not exist
+await envManager.saveBot({...})
+```
+
+## Configuration Schema
+
+```typescript
+const ConfigSchema = type({
+  'github?': {
+    'token?': 'string',
+    'useGhCli?': 'boolean',
+    'defaultOrg?': 'string',
+    'defaultVisibility?': '"public" | "private"',
+  },
+  'coolify?': {
+    'url?': 'string',
+    'token?': 'string',
+    'defaultServer?': 'string',
+    'defaultDestination?': 'string',
+  },
+  'telegram?': {
+    'apiId?': 'number',
+    'apiHash?': 'string',
+  },
+})
+```
+
+## Arktype Validation Pattern
+
+```typescript
+import { type } from 'arktype'
+
+const result = ConfigSchema(parsed)
+if (result instanceof type.errors) {
+  log.warn('Invalid config')
+  return
+}
+// result is now typed as Config
+```
+
+## License
+
+MIT
