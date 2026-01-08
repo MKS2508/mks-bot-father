@@ -1,0 +1,14 @@
+{
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn",
+    "perf": "warn",
+    "style": "warn",
+    "restriction": "off"
+  },
+  "env": {
+    "node": true,
+    "es2021": true
+  },
+  "ignore": ["node_modules", "dist", "build", ".turbo", "coverage"]
+}

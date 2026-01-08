@@ -1,0 +1,38 @@
+{
+  "name": "mks-bot-father-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "core/packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter '*' build",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "bun run --filter '*' typecheck",
+    "clean": "rm -rf node_modules **/node_modules **/dist **/.turbo",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.11",
+    "@oxlint/darwin-arm64": "0.11.1",
+    "@types/bun": "^1.1.15",
+    "@types/node": "^22.10.5",
+    "@typescript/native-preview": "^7.0.0-dev.20260106.1",
+    "oxlint": "^0.11.1",
+    "prettier": "^3.4.2",
+    "prettier-plugin-organize-imports": "^4.1.0"
+  },
+  "dependencies": {
+    "@mks2508/better-logger": "^4.0.0",
+    "@mks2508/no-throw": "^0.1.0",
+    "arktype": "^2.1.29"
+  },
+  "packageManager": "bun@1.1.43"
+}
