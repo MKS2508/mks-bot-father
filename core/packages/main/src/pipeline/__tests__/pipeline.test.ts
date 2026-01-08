@@ -18,6 +18,9 @@ const mockExistsSync = vi.fn()
 
 vi.mock('node:fs', () => ({
   existsSync: (path: string) => mockExistsSync(path),
+  appendFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  writeFileSync: vi.fn(),
 }))
 
 vi.mock('../../services/config.service.js', () => ({

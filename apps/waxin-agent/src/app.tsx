@@ -264,25 +264,37 @@ export const App = () => {
             borderColor: THEME.purple
           }}
         >
-          <scrollbox style={{ flexGrow: 1 }}>
+          <scrollbox
+            style={{
+              rootOptions: { backgroundColor: THEME.bgPanel },
+              wrapperOptions: { backgroundColor: THEME.bgDark },
+              viewportOptions: { backgroundColor: THEME.bg },
+              contentOptions: { backgroundColor: THEME.bgPanel },
+            }}
+          >
             {messages.map((msg, i) => (
-              <text
+              <box
                 key={i}
                 style={{
-                  fg:
-                    msg.role === 'user'
+                  width: "100%",
+                  padding: 0,
+                  marginBottom: msg.role === 'assistant' ? 1 : 0,
+                  backgroundColor: 'transparent',
+                }}
+              >
+                <text
+                  style={{
+                    fg: msg.role === 'user'
                       ? THEME.cyan
                       : msg.role === 'tool'
                         ? THEME.magenta
                         : THEME.green,
-                  marginBottom: msg.role === 'assistant' ? 1 : 0
-                }}
-              >
-                {msg.role === 'user' && '▶ '}
-                {msg.role === 'tool' && '  ⚡ '}
-                {msg.role === 'assistant' && ''}
-                {msg.content}
-              </text>
+                  }}
+                  content={msg.role === 'user' ? `▶ ${msg.content}` :
+                          msg.role === 'tool' ? `  ⚡ ${msg.content}` :
+                          msg.content}
+                />
+              </box>
             ))}
           </scrollbox>
         </box>

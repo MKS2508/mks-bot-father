@@ -15,10 +15,42 @@ vi.mock('@mks2508/mks-bot-father', () => ({
   }),
 }))
 
+type ToolHandler = (args: Record<string, unknown>) => Promise<{
+  content: Array<{ type: string; text: string }>
+  isError?: boolean
+}>
+
+interface CapturedTool {
+  name: string
+  description: string
+  handler: ToolHandler
+}
+
+let capturedTools: CapturedTool[] = []
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  createSdkMcpServer: (config: { name: string; tools: CapturedTool[] }) => {
+    capturedTools = config.tools
+    return { name: config.name }
+  },
+  tool: (name: string, description: string, _schema: unknown, handler: ToolHandler) => ({
+    name,
+    description,
+    handler,
+  }),
+}))
+
+function getTool(name: string): CapturedTool | undefined {
+  return capturedTools.find((t) => t.name === name)
+}
+
 describe('Coolify Tools', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    capturedTools = []
     mockCoolifyInit.mockResolvedValue(ok(undefined))
+    vi.resetModules()
+    await import('../coolify.js')
   })
 
   describe('deploy tool', () => {
@@ -30,26 +62,21 @@ describe('Coolify Tools', () => {
         })
       )
 
-      const { coolifyServer } = await import('../coolify.js')
-      const tools = coolifyServer.listTools()
-      const deployTool = tools.find((t) => t.name === 'deploy')
+      const tool = getTool('deploy')
+      expect(tool).toBeDefined()
 
-      expect(deployTool).toBeDefined()
-
-      const result = await coolifyServer.callTool('deploy', {
+      const result = await tool!.handler({
         uuid: 'app-uuid-123',
       })
 
       expect(result.isError).toBeFalsy()
       expect(result.content).toHaveLength(1)
 
-      if (result.content[0].type === 'text') {
-        const parsed = JSON.parse(result.content[0].text)
-        expect(parsed.success).toBe(true)
-        expect(parsed.deploymentUuid).toBe('deploy-uuid-123')
-        expect(parsed.resourceUuid).toBe('resource-uuid-456')
-        expect(parsed.message).toBe('Deployment started')
-      }
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.deploymentUuid).toBe('deploy-uuid-123')
+      expect(parsed.resourceUuid).toBe('resource-uuid-456')
+      expect(parsed.message).toBe('Deployment started')
     })
 
     it('should handle Coolify init failure', async () => {
@@ -61,16 +88,17 @@ describe('Coolify Tools', () => {
       )
 
       vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('deploy', {
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('deploy')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Coolify not configured')
-        expect(result.content[0].text).toContain('No Coolify URL configured')
-      }
+      expect(result.content[0].text).toContain('Coolify not configured')
+      expect(result.content[0].text).toContain('No Coolify URL configured')
     })
 
     it('should handle deployment failure', async () => {
@@ -81,17 +109,14 @@ describe('Coolify Tools', () => {
         })
       )
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('deploy', {
+      const tool = getTool('deploy')
+      const result = await tool!.handler({
         uuid: 'nonexistent-uuid',
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Deployment failed')
-        expect(result.content[0].text).toContain('Application not found')
-      }
+      expect(result.content[0].text).toContain('Deployment failed')
+      expect(result.content[0].text).toContain('Application not found')
     })
 
     it('should pass force rebuild parameter', async () => {
@@ -99,9 +124,8 @@ describe('Coolify Tools', () => {
         ok({ deploymentUuid: 'deploy-123', resourceUuid: 'res-456' })
       )
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      await coolifyServer.callTool('deploy', {
+      const tool = getTool('deploy')
+      await tool!.handler({
         uuid: 'app-uuid',
         force: true,
       })
@@ -118,9 +142,8 @@ describe('Coolify Tools', () => {
         ok({ deploymentUuid: 'deploy-123', resourceUuid: 'res-456' })
       )
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      await coolifyServer.callTool('deploy', {
+      const tool = getTool('deploy')
+      await tool!.handler({
         uuid: 'app-uuid',
         tag: 'v1.2.3',
       })
@@ -136,16 +159,17 @@ describe('Coolify Tools', () => {
       mockCoolifyInit.mockRejectedValue(new Error('Network timeout'))
 
       vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('deploy', {
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('deploy')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Error')
-        expect(result.content[0].text).toContain('Network timeout')
-      }
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Network timeout')
     })
   })
 
@@ -153,9 +177,8 @@ describe('Coolify Tools', () => {
     it('should set environment variables successfully', async () => {
       mockCoolifySetEnvVars.mockResolvedValue(ok(undefined))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('set_env_vars', {
+      const tool = getTool('set_env_vars')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
         envVars: {
           TG_BOT_TOKEN: 'token123',
@@ -165,18 +188,15 @@ describe('Coolify Tools', () => {
       })
 
       expect(result.isError).toBeFalsy()
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('3 environment variable(s)')
-        expect(result.content[0].text).toContain('deploy tool to apply')
-      }
+      expect(result.content[0].text).toContain('3 environment variable(s)')
+      expect(result.content[0].text).toContain('deploy tool to apply')
     })
 
     it('should call service with correct parameters', async () => {
       mockCoolifySetEnvVars.mockResolvedValue(ok(undefined))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      await coolifyServer.callTool('set_env_vars', {
+      const tool = getTool('set_env_vars')
+      await tool!.handler({
         uuid: 'app-uuid-123',
         envVars: {
           KEY1: 'value1',
@@ -198,51 +218,42 @@ describe('Coolify Tools', () => {
         })
       )
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('set_env_vars', {
+      const tool = getTool('set_env_vars')
+      const result = await tool!.handler({
         uuid: 'invalid-uuid',
         envVars: { KEY: 'value' },
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Failed to set env vars')
-        expect(result.content[0].text).toContain('Invalid application UUID')
-      }
+      expect(result.content[0].text).toContain('Failed to set env vars')
+      expect(result.content[0].text).toContain('Invalid application UUID')
     })
 
     it('should handle empty env vars', async () => {
       mockCoolifySetEnvVars.mockResolvedValue(ok(undefined))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('set_env_vars', {
+      const tool = getTool('set_env_vars')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
         envVars: {},
       })
 
       expect(result.isError).toBeFalsy()
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('0 environment variable(s)')
-      }
+      expect(result.content[0].text).toContain('0 environment variable(s)')
     })
 
     it('should handle unexpected errors', async () => {
       mockCoolifySetEnvVars.mockRejectedValue(new Error('API error'))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('set_env_vars', {
+      const tool = getTool('set_env_vars')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
         envVars: { KEY: 'value' },
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Error')
-        expect(result.content[0].text).toContain('API error')
-      }
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('API error')
     })
   })
 
@@ -250,16 +261,13 @@ describe('Coolify Tools', () => {
     it('should return application status', async () => {
       mockCoolifyGetStatus.mockResolvedValue(ok('running'))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('get_deployment_status', {
+      const tool = getTool('get_deployment_status')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
       })
 
       expect(result.isError).toBeFalsy()
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('running')
-      }
+      expect(result.content[0].text).toContain('running')
     })
 
     it('should return detailed status object', async () => {
@@ -271,19 +279,16 @@ describe('Coolify Tools', () => {
       }
       mockCoolifyGetStatus.mockResolvedValue(ok(statusObj))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('get_deployment_status', {
+      const tool = getTool('get_deployment_status')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
       })
 
       expect(result.isError).toBeFalsy()
-      if (result.content[0].type === 'text') {
-        const parsed = JSON.parse(result.content[0].text)
-        expect(parsed.status).toBe('running')
-        expect(parsed.health).toBe('healthy')
-        expect(parsed.replicas).toBe(2)
-      }
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.status).toBe('running')
+      expect(parsed.health).toBe('healthy')
+      expect(parsed.replicas).toBe(2)
     })
 
     it('should handle status not found', async () => {
@@ -294,33 +299,27 @@ describe('Coolify Tools', () => {
         })
       )
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('get_deployment_status', {
+      const tool = getTool('get_deployment_status')
+      const result = await tool!.handler({
         uuid: 'nonexistent-uuid',
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Failed to get status')
-        expect(result.content[0].text).toContain('Application not found')
-      }
+      expect(result.content[0].text).toContain('Failed to get status')
+      expect(result.content[0].text).toContain('Application not found')
     })
 
     it('should handle unexpected errors', async () => {
       mockCoolifyGetStatus.mockRejectedValue(new Error('Connection refused'))
 
-      vi.resetModules()
-      const { coolifyServer } = await import('../coolify.js')
-      const result = await coolifyServer.callTool('get_deployment_status', {
+      const tool = getTool('get_deployment_status')
+      const result = await tool!.handler({
         uuid: 'app-uuid',
       })
 
       expect(result.isError).toBe(true)
-      if (result.content[0].type === 'text') {
-        expect(result.content[0].text).toContain('Error')
-        expect(result.content[0].text).toContain('Connection refused')
-      }
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Connection refused')
     })
   })
 })

@@ -119,13 +119,22 @@ export class AgentBridge {
       subtype?: string
       session_id?: string
       content?: ContentBlock[]
+      message?: { content?: ContentBlock[] }
+      result?: string
+      errors?: string[]
     }
 
     log.debug('AGENT', 'handleMessage() processing', {
       type: msg.type,
       subtype: msg.subtype,
       hasContent: Array.isArray(msg.content),
-      contentLength: Array.isArray(msg.content) ? msg.content.length : 0
+      hasNestedMessage: msg.message && typeof msg.message === 'object',
+      hasNestedContent: msg.message && Array.isArray(msg.message.content),
+      contentLength: Array.isArray(msg.content) ? msg.content.length :
+                      (msg.message && Array.isArray(msg.message.content) ? msg.message.content.length : 0),
+      allKeys: Object.keys(msg),
+      hasResult: msg.result !== undefined,
+      resultLength: msg.result?.length || 0
     })
 
     // Session initialization
@@ -135,11 +144,15 @@ export class AgentBridge {
       agentLogger.info(`Session started: ${msg.session_id}`)
     }
 
-    // Process content blocks from assistant messages
-    if (msg.type === 'assistant' && Array.isArray(msg.content)) {
-      log.debug('AGENT', `Processing ${msg.content.length} content blocks`)
+    // Get content from either direct property or nested message object
+    const contentBlocks = Array.isArray(msg.content) ? msg.content :
+                          (msg.message && Array.isArray(msg.message.content) ? msg.message.content : null)
 
-      for (const block of msg.content) {
+    // Process content blocks from assistant messages
+    if (msg.type === 'assistant' && contentBlocks) {
+      log.debug('AGENT', `Processing ${contentBlocks.length} content blocks`)
+
+      for (const block of contentBlocks) {
         if (block.type === 'text' && block.text) {
           log.debug('AGENT', 'Text block received', {
             length: block.text.length,
@@ -157,6 +170,15 @@ export class AgentBridge {
           callbacks.onToolCall?.(block.name, block.input)
         }
       }
+    }
+
+    // Handle final result from result messages
+    if (msg.type === 'result' && msg.result) {
+      log.info('AGENT', 'Final result received', {
+        length: msg.result.length,
+        preview: msg.result.slice(0, 100)
+      })
+      callbacks.onAssistantMessage?.(msg.result)
     }
   }
 

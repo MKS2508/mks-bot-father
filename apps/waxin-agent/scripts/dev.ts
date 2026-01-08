@@ -1,12 +1,18 @@
 #!/usr/bin/env bun
 /**
- * Development Script - Auto-setup tmux session with dual panes
+ * Development Script - Auto-setup tmux sessions
  *
  * Usage: bun run dev
  *
- * Behavior:
- * - If 'waxin' session exists -> attach to it
- * - If not exists -> create session with TUI (pane 0) + Log Viewer (pane 1)
+ * Creates two separate tmux sessions:
+ * - waxintui: TUI application
+ * - waxinlogs: Log viewer
+ *
+ * After creation, use:
+ * - cx waxintui (attach to TUI)
+ * - cx waxinlogs (attach to log viewer)
+ * - tx waxintui "command" (send command to TUI)
+ * - tx waxinlogs "command" (send command to log viewer)
  */
 
 import { $ } from 'bun'
@@ -17,7 +23,8 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const PROJECT_DIR = resolve(__dirname, '..')
 
-const SESSION_NAME = 'waxin'
+const SESSION_TUI = 'waxintui'
+const SESSION_LOGS = 'waxinlogs'
 
 // ANSI colors
 const c = {
@@ -25,85 +32,49 @@ const c = {
   green: '\x1b[92m',
   yellow: '\x1b[93m',
   cyan: '\x1b[96m',
-  magenta: '\x1b[95m',
   dim: '\x1b[2m'
 }
 
-async function sessionExists(): Promise<boolean> {
+async function sessionExists(name: string): Promise<boolean> {
   try {
-    const result = await $`tmux has-session -t ${SESSION_NAME} 2>/dev/null`.quiet()
+    const result = await $`tmux has-session -t ${name} 2>/dev/null`.quiet()
     return result.exitCode === 0
   } catch {
     return false
   }
 }
 
-async function cleanupOrphanSessions(): Promise<void> {
-  try {
-    const result = await $`tmux list-sessions -F "#{session_name}" 2>/dev/null`.quiet()
-    const sessions = result.stdout.toString().split('\n').filter(s => s.trim())
+async function createTUISession(): Promise<void> {
+  console.log(`${c.cyan}Creating tmux session '${SESSION_TUI}' (TUI)...${c.reset}`)
 
-    // Find sessions that start with 'waxin' but aren't the main one
-    const orphans = sessions.filter(s => s.startsWith('waxin') && s !== SESSION_NAME)
+  await $`tmux new-session -d -s ${SESSION_TUI} -c ${PROJECT_DIR} "bun run --watch src/index.ts"`.quiet()
+  await $`tmux set -t ${SESSION_TUI} mouse on`.quiet()
+  await $`tmux set -t ${SESSION_TUI} history-limit 10000`.quiet()
 
-    if (orphans.length > 0) {
-      console.log(`${c.yellow}Cleaning up ${orphans.length} orphan session(s)...${c.reset}`)
-      for (const session of orphans) {
-        try {
-          await $`tmux kill-session -t ${session}`.quiet()
-          console.log(`${c.dim}  Killed: ${session}${c.reset}`)
-        } catch {
-          // Ignore errors
-        }
-      }
-    }
-  } catch {
-    // No tmux sessions exist, that's fine
-  }
+  console.log(`${c.green}✓ TUI session created${c.reset}`)
 }
 
-async function createSession(): Promise<void> {
-  console.log(`${c.cyan}Creating tmux session '${SESSION_NAME}'...${c.reset}`)
+async function createLogsSession(): Promise<void> {
+  console.log(`${c.cyan}Creating tmux session '${SESSION_LOGS}' (Log Viewer)...${c.reset}`)
 
-  // Create new detached session with first command (TUI with watch)
-  await $`tmux new-session -d -s ${SESSION_NAME} -c ${PROJECT_DIR} "bun run --watch src/index.ts; read"`.quiet()
+  await $`tmux new-session -d -s ${SESSION_LOGS} -c ${PROJECT_DIR} "bun run scripts/log-viewer.ts"`.quiet()
+  await $`tmux set -t ${SESSION_LOGS} mouse on`.quiet()
+  await $`tmux set -t ${SESSION_LOGS} history-limit 50000`.quiet()
 
-  // Configure tmux globally for OSC 8 hyperlinks support (after session exists)
+  // Configure OSC 8 hyperlinks for log viewer
   await $`tmux set-option -g allow-passthrough on`.quiet()
   await $`tmux set-option -ga terminal-features "*:hyperlinks"`.quiet()
 
-  // Split window horizontally (pane 1 at bottom, 30%) and run log viewer with watch
-  // Pass pane width via environment variable for proper layout
-  await $`tmux split-window -t ${SESSION_NAME} -v -p 30 -c ${PROJECT_DIR} "TMUX_PANE_WIDTH=\$(tmux display-message -t #{pane_id} -p '#{pane_width}') bun run --watch scripts/log-viewer.ts; read"`.quiet()
-
-  // Enable mouse mode for scrolling and selection
-  await $`tmux set -t ${SESSION_NAME} mouse on`.quiet()
-
-  // Set scrollback buffer size
-  await $`tmux set -t ${SESSION_NAME} history-limit 10000`.quiet()
-
-  // Enable OSC 8 hyperlink passthrough on log viewer pane (pane 1) - redundant but explicit
-  await $`tmux set-option -t ${SESSION_NAME}:.1 allow-passthrough on`.quiet()
-
-  // Select pane 0 (TUI) as active
-  await $`tmux select-pane -t ${SESSION_NAME}:.0`.quiet()
-
-  console.log(`${c.green}✓ Session created with dual panes${c.reset}`)
-  console.log(`${c.dim}  Pane 0 (top):    TUI${c.reset}`)
-  console.log(`${c.dim}  Pane 1 (bottom): Log Viewer (clickable links!)${c.reset}`)
-  console.log(`${c.dim}  Mouse: enabled (scroll + select)${c.reset}`)
+  console.log(`${c.green}✓ Log viewer session created${c.reset}`)
 }
 
-async function attachSession(): Promise<void> {
-  console.log(`${c.magenta}Attaching to session '${SESSION_NAME}'...${c.reset}`)
+async function attachSession(name: string): Promise<void> {
+  console.log(`${c.cyan}Attaching to session '${name}'...${c.reset}`)
 
-  // Check if we're already inside tmux
   if (process.env.TMUX) {
-    // Switch to the session
-    await $`tmux switch-client -t ${SESSION_NAME}`.quiet()
+    await $`tmux switch-client -t ${name}`.quiet()
   } else {
-    // Attach to the session
-    const proc = Bun.spawn(['tmux', 'attach-session', '-t', SESSION_NAME], {
+    const proc = Bun.spawn(['tmux', 'attach-session', '-t', name], {
       stdin: 'inherit',
       stdout: 'inherit',
       stderr: 'inherit'
@@ -118,18 +89,42 @@ async function main() {
   console.log(`${c.cyan}╚════════════════════════════════════════╝${c.reset}`)
   console.log('')
 
-  // Clean up any orphan sessions first
-  await cleanupOrphanSessions()
+  const tuiExists = await sessionExists(SESSION_TUI)
+  const logsExists = await sessionExists(SESSION_LOGS)
 
-  const exists = await sessionExists()
-
-  if (exists) {
-    console.log(`${c.yellow}Session '${SESSION_NAME}' already exists${c.reset}`)
-    await attachSession()
-  } else {
-    await createSession()
-    await attachSession()
+  if (tuiExists && logsExists) {
+    console.log(`${c.yellow}Both sessions already exist${c.reset}`)
+    console.log('')
+    console.log(`${c.dim}Use:${c.reset}`)
+    console.log(`${c.dim}  cx ${SESSION_TUI}  - attach to TUI${c.reset}`)
+    console.log(`${c.dim}  cx ${SESSION_LOGS} - attach to Log Viewer${c.reset}`)
+    return
   }
+
+  // Create TUI session first
+  if (!tuiExists) {
+    await createTUISession()
+  } else {
+    console.log(`${c.yellow}TUI session '${SESSION_TUI}' already exists${c.reset}`)
+  }
+
+  // Create Logs session second
+  if (!logsExists) {
+    await createLogsSession()
+  } else {
+    console.log(`${c.yellow}Logs session '${SESSION_LOGS}' already exists${c.reset}`)
+  }
+
+  console.log('')
+  console.log(`${c.green}✓ All sessions ready${c.reset}`)
+  console.log('')
+  console.log(`${c.dim}Use:${c.reset}`)
+  console.log(`${c.dim}  cx ${SESSION_TUI}  - attach to TUI${c.reset}`)
+  console.log(`${c.dim}  cx ${SESSION_LOGS} - attach to Log Viewer${c.reset}`)
+  console.log('')
+  console.log(`${c.dim}Or send commands:${c.reset}`)
+  console.log(`${c.dim}  tx ${SESSION_TUI}  "command" - send to TUI${c.reset}`)
+  console.log(`${c.dim}  tx ${SESSION_LOGS} "command" - send to Log Viewer${c.reset}`)
 }
 
 main().catch((err) => {

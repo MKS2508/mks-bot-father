@@ -10,8 +10,8 @@ import { readFile, stat } from 'fs/promises'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import chalk from 'chalk'
-import terminalLink from 'terminal-link'
 import figures from 'figures'
+import Table from 'cli-table3'
 import type { JsonLogEntry, LogMetrics } from '../src/lib/json-logger.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -120,11 +120,22 @@ const srcIcon: Record<string, string> = {
 
 // Custom Unicode icons
 const icons = {
-  lightning: '⚡',
+  check: '✓',
+  cross: '✗',
+  clock: '⏱',
+  lightning: '◆',
+  dollar: '$',
   file: '📄',
   gear: '⚙',
   folder: '📁',
-  clock: '🕐'
+  error: '⚠',
+  info: 'ℹ',
+  debug: '⚙',
+  id: '🆔',
+  ruler: '📏',
+  wrench: '🔧',
+  message: '💬',
+  clipboard: '📋'
 }
 
 function getSrcBadge(src: string): string {
@@ -166,9 +177,13 @@ function formatValue(value: unknown): string {
     if (/^\$[\d.]+$/.test(value)) {
       return `${c.green}${value}${c.reset}`
     }
+    // Color hex patterns - truncate aggressively
+    if (/^#[0-9a-fA-F]{6}$/.test(value) || /^#[0-9a-fA-F]{8}$/.test(value)) {
+      return `${c.white}"${value.slice(0, 10)}...${c.reset}"`
+    }
     // Truncate long strings
-    if (value.length > 40) {
-      return `${c.white}"${value.slice(0, 37)}..."${c.reset}`
+    if (value.length > 35) {
+      return `${c.white}"${value.slice(0, 32)}..."${c.reset}`
     }
     return `${c.white}"${value}"${c.reset}`
   }
@@ -198,24 +213,30 @@ function formatKeyValue(key: string, value: unknown): string {
   return `${keyColor}${key}${c.reset}${c.dim}=${c.reset}${formatValue(value)}`
 }
 
-function formatData(data: Record<string, unknown>): string {
-  const entries = Object.entries(data)
+// Get icon for data key
+function getIconForKey(key: string): string {
+  const iconMap: Record<string, string> = {
+    duration: icons.clock,
+    durationMs: icons.clock,
+    tokens: icons.lightning,
+    inputTokens: `${icons.lightning}→`,
+    outputTokens: `→${icons.lightning}`,
+    totalTokens: icons.lightning,
+    cost: icons.dollar,
+    costUsd: icons.dollar,
+    errors: icons.error,
+    error: icons.error,
+    errorsCount: icons.error,
+    success: icons.check,
+    sessionId: icons.id,
+    promptLength: icons.ruler,
+    toolCallsCount: icons.wrench,
+    messageType: icons.message,
+    type: icons.clipboard,
+    subtype: icons.clipboard,
+  }
 
-  // Prioritize important keys
-  const priority = ['error', 'success', 'prompt', 'tool', 'duration', 'tokens', 'cost']
-  entries.sort(([a], [b]) => {
-    const aIdx = priority.findIndex(p => a.toLowerCase().includes(p))
-    const bIdx = priority.findIndex(p => b.toLowerCase().includes(p))
-    if (aIdx === -1 && bIdx === -1) return 0
-    if (aIdx === -1) return 1
-    if (bIdx === -1) return -1
-    return aIdx - bIdx
-  })
-
-  const pairs = entries
-    .slice(0, 6) // Show up to 6 pairs
-    .map(([k, v]) => formatKeyValue(k, v))
-  return pairs.join(' ')
+  return iconMap[key] || '•'
 }
 
 function formatMetrics(metrics: LogMetrics): string {
@@ -268,11 +289,14 @@ function formatMetrics(metrics: LogMetrics): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function stripAnsi(str: string): string {
-  // Strip ANSI color codes
-  let result = str.replace(/\x1b\[[0-9;]*m/g, '')
-  // Strip OSC 8 hyperlink sequences with BEL (\x07) or ST (\x1b\\)
+  // Strip all ANSI/CSI escape sequences completely
+  // Matches ESC [ ... followed by any parameter string and a letter
+  let result = str.replace(/\x1b\[.*?[a-zA-Z]/g, '')
+  // OSC 8 hyperlink sequences
   result = result.replace(/\x1b\]8;;[^\x07]*\x07/g, '')
   result = result.replace(/\x1b\]8;;[^\x1b]*\x1b\\/g, '')
+  // OSC sequences with BEL or ST
+  result = result.replace(/\x1b\][^\x07\x1b]*[\x07\x1b]/g, '')
   return result
 }
 
@@ -294,23 +318,88 @@ function createDots(leftLen: number, rightLen: number): string {
   return chalk.dim('·'.repeat(dotsLen))
 }
 
+// Create compact colored badge
+function createBadge(key: string, value: unknown): string {
+  const formatted = formatValue(value)
+
+  // Determine color based on key
+  let bgColor = c.bgGray
+  let fgColor = c.white
+
+  if (key.includes('success') || key === 'success') {
+    bgColor = c.bgGreen
+    fgColor = c.black
+  } else if (key.includes('error') || key.includes('fail')) {
+    bgColor = c.bgRed
+    fgColor = c.white
+  } else if (key.includes('token')) {
+    bgColor = c.bgCyan
+    fgColor = c.black
+  } else if (key.includes('cost') || key.includes('duration')) {
+    bgColor = c.bgYellow
+    fgColor = c.black
+  }
+
+  return `${bgColor}${fgColor} ${key}=${formatted} ${c.reset}`
+}
+
+function formatData(data: Record<string, unknown>): string {
+  const entries = Object.entries(data)
+  if (entries.length === 0) return ''
+
+  // For small datasets (<= 3 items), use inline badges
+  if (entries.length <= 3) {
+    const badges = entries.map(([k, v]) => createBadge(k, v))
+    return badges.join(' ')
+  }
+
+  // For larger datasets, use cli-table3
+  const table = new Table({
+    chars: {
+      top: '',
+      'top-mid': '',
+      'top-left': '',
+      'top-right': '',
+      bottom: '',
+      'bottom-mid': '',
+      'bottom-left': '',
+      'bottom-right': '',
+      left: '',
+      'left-mid': '',
+      mid: '',
+      'mid-mid': '',
+      right: '',
+      'right-mid': '',
+      middle: ' │ '
+    },
+    style: {
+      'padding-left': 0,
+      'padding-right': 0
+    },
+    wordWrap: false
+  })
+
+  entries.forEach(([key, value]) => {
+    const icon = getIconForKey(key)
+    const formattedValue = formatValue(value)
+    table.push([`${icon} ${chalk.dim(key)}`, formattedValue])
+  })
+
+  return '\n' + table.toString()
+}
+
+// Create button-like link with borders
 function createFileLink(loc: string): string {
-  // loc format: "src/app.tsx:358"
   const projectDir = resolve(__dirname, '..')
   const [relPath, line] = loc.split(':')
   const fullPath = resolve(projectDir, relPath)
-
-  // WebStorm URL scheme: webstorm://open?file=PATH&line=LINE
-  // Don't URL-encode the file path - WebStorm expects plain path
   const url = `webstorm://open?file=${fullPath}&line=${line}`
-  const displayText = loc
 
-  // OSC 8 hyperlink format using BEL (\x07) terminator - more compatible
-  // Format: \e]8;;URL\aTEXT\a
-  const osc8Start = `\x1b]8;;${url}\x07`
-  const osc8End = `\x1b]8;;\x07`
+  // Simple button with brackets
+  const buttonText = `${icons.file} ${loc}`
+  const styledButton = `${c.bgPurple}${c.white}[${buttonText}]${c.reset}`
 
-  return `${osc8Start}${chalk.hex('#b381c5').underline(displayText)}${osc8End}`
+  return `\x1b]8;;${url}\x07${styledButton}\x1b]8;;\x07`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -449,20 +538,33 @@ async function readLastLines(filePath: string, n: number): Promise<string[]> {
 // HEADER
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function printHeader(logFile: string, lineCount?: number) {
+function printHeader(logFile: string, lineCount?: number, isFirstPrint = false) {
   const width = getWidth()
-  const titleText = ` ${icons.lightning} WAXIN AGENT - LIVE LOG VIEWER `
-  const padding = Math.max(0, Math.floor((width - titleText.length) / 2))
+  const titleText = `${icons.lightning} WAXIN AGENT - LIVE LOG VIEWER`
 
-  console.clear()
+  // Box-drawing characters
+  const box = {
+    topLeft: '╔',
+    topRight: '╗',
+    bottomLeft: '╚',
+    bottomRight: '╝',
+    horizontal: '═',
+    vertical: '║',
+    leftT: '╠',
+    rightT: '╣'
+  }
 
-  // Header bar
-  console.log(chalk.bgHex('#b381c5').white.bold(' '.repeat(width)))
-  console.log(chalk.bgHex('#b381c5').white.bold(' '.repeat(padding) + titleText + ' '.repeat(Math.max(0, width - padding - titleText.length))))
-  console.log(chalk.bgHex('#b381c5').white.bold(' '.repeat(width)))
-  console.log('')
+  // Top border
+  const topBorder = box.topLeft + box.horizontal.repeat(width - 2) + box.topRight
 
-  // File info with icons
+  // Calculate padding for centered title
+  const padding = Math.max(0, Math.floor((width - 2 - titleText.length) / 2))
+  const titlePadding = ' '.repeat(padding)
+
+  // Title line with borders
+  const titleLine = box.vertical + titlePadding + chalk.hex('#b381c5').white.bold(titleText) + ' '.repeat(Math.max(0, width - 2 - padding - titleText.length)) + box.vertical
+
+  // Info section with borders
   const fileIcon = chalk.hex('#36f9f6')(icons.file)
   const fileInfo = `${fileIcon} ${chalk.dim('File:')} ${chalk.hex('#36f9f6')(logFile)}`
 
@@ -471,14 +573,32 @@ function printHeader(logFile: string, lineCount?: number) {
     ? `${countIcon} ${chalk.dim('Lines:')} ${chalk.hex('#fede5d')(String(lineCount))}`
     : ''
 
+  // Info line with borders
+  let infoLine: string
   if (linesInfo) {
-    console.log(padToRight(fileInfo, linesInfo))
+    const infoContent = padToRight(fileInfo, linesInfo)
+    infoLine = box.vertical + ' ' + infoContent + ' '.repeat(Math.max(0, width - 3 - visibleLength(infoContent))) + box.vertical
   } else {
-    console.log(fileInfo)
+    infoLine = box.vertical + ' ' + fileInfo + ' '.repeat(Math.max(0, width - 3 - visibleLength(fileInfo))) + box.vertical
   }
 
-  // Separator
-  console.log(chalk.dim('─'.repeat(width)))
+  // Separator line with T-junctions
+  const separatorLine = box.leftT + box.horizontal.repeat(width - 2) + box.rightT
+
+  // Empty line for spacing
+  const emptyLine = box.vertical + ' '.repeat(width - 2) + box.vertical
+
+  // Only clear screen on first print, not on resize
+  if (isFirstPrint) {
+    console.clear()
+  }
+
+  console.log(topBorder)
+  console.log(emptyLine)
+  console.log(titleLine)
+  console.log(emptyLine)
+  console.log(infoLine)
+  console.log(separatorLine)
   console.log('')
 }
 
@@ -495,8 +615,8 @@ async function main() {
   // Initial read
   const initialLines = await readLastLines(logFile, LINES_TO_SHOW)
 
-  // Print header with line count
-  printHeader(logFile, initialLines.length)
+  // Print header with line count (first print clears screen)
+  printHeader(logFile, initialLines.length, true)
 
   initialLines.forEach((line) => {
     processedLines.add(line)
@@ -540,11 +660,30 @@ async function main() {
   // Poll for updates
   setInterval(checkForUpdates, POLL_INTERVAL)
 
+  // Handle terminal resize - just update width, don't reprint
+  process.stdout.on('resize', () => {
+    // Width will be recalculated on next render via getWidth()
+  })
+
   // Handle exit
   process.on('SIGINT', () => {
+    const width = getWidth()
+    const box = {
+      topLeft: '╔',
+      topRight: '╗',
+      bottomLeft: '╚',
+      bottomRight: '╝',
+      horizontal: '═',
+      vertical: '║',
+    }
+
+    const message = `${icons.info} Log viewer stopped`
+    const padding = Math.max(0, Math.floor((width - 2 - message.length) / 2))
+
     console.log('')
-    console.log(chalk.dim('─'.repeat(getWidth())))
-    console.log(chalk.hex('#fede5d')(`${figures.info} Log viewer stopped`))
+    console.log(box.vertical + ' '.repeat(width - 2) + box.vertical)
+    console.log(box.vertical + ' '.repeat(padding) + chalk.hex('#fede5d')(message) + ' '.repeat(Math.max(0, width - 2 - padding - message.length)) + box.vertical)
+    console.log(box.bottomLeft + box.horizontal.repeat(width - 2) + box.bottomRight)
     process.exit(0)
   })
 }
