@@ -1,0 +1,38 @@
+{
+  "name": "waxin-agent",
+  "version": "0.1.0",
+  "description": "TUI for Bot Manager Agent debugging and testing",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "dev:direct": "bun run --watch src/index.ts",
+    "logs": "bun run scripts/log-viewer.ts",
+    "build": "tsgo",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.11.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@mks2508/better-logger": "^4.0.0",
+    "@mks2508/bot-manager-agent": "workspace:*",
+    "@mks2508/no-throw": "^0.1.0",
+    "@mks2508/opentui-image": "^0.2.0",
+    "@opentui/core": "^0.1.69",
+    "@opentui/react": "^0.1.69",
+    "chalk": "^5.6.2",
+    "dotenv": "^17.2.3",
+    "figures": "^6.1.0",
+    "react": "^19.0.0",
+    "react-reconciler": "^0.32.0",
+    "terminal-link": "^5.0.0"
+  }
+}
