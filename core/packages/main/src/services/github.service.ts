@@ -5,7 +5,7 @@
  */
 
 import { ok, err, tryCatchAsync, isOk, isErr, type Result, type ResultError } from '@mks2508/no-throw'
-import { createLogger } from '../utils/index.js'
+import { createLogger, log as fileLog } from '../utils/index.js'
 import { getConfigService } from './config.service.js'
 import {
   type IGitHubRepoOptions,
@@ -58,6 +58,7 @@ export class GitHubService {
     const tokenResult = await config.resolveGitHubToken()
 
     if (isErr(tokenResult)) {
+      fileLog.error('GITHUB', 'Failed to resolve token', { error: tokenResult.error.message })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: tokenResult.error.message })
     }
 
@@ -67,10 +68,12 @@ export class GitHubService {
       log.error('No GitHub token available')
       log.info('Configure with: mbf config set github.token <token>')
       log.info('Or authenticate with: gh auth login')
+      fileLog.error('GITHUB', 'No GitHub token available', { reason: 'not_configured' })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: 'No GitHub token available' })
     }
 
     log.debug('GitHub token resolved')
+    fileLog.info('GITHUB', 'GitHub service initialized')
     return ok(undefined)
   }
 
@@ -190,6 +193,11 @@ export class GitHubService {
     }
 
     log.info(`Creating repo ${options.name}`)
+    fileLog.info('GITHUB', 'Creating repository', {
+      name: options.name,
+      owner,
+      private: options.private
+    })
 
     const isOrgResult = await this.isOrganization(owner)
     const isOrg = isOk(isOrgResult) && isOrgResult.value
@@ -211,10 +219,20 @@ export class GitHubService {
 
     if (result.error) {
       log.error(`Failed to create repo: ${result.error}`)
+      fileLog.error('GITHUB', 'Failed to create repository', {
+        name: options.name,
+        error: result.error,
+        status: result.status
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
 
     log.success(`Repository created: ${result.data?.html_url}`)
+    fileLog.info('GITHUB', 'Repository created', {
+      name: options.name,
+      fullName: result.data?.full_name,
+      url: result.data?.html_url
+    })
     return ok({
       success: true,
       repoUrl: result.data?.html_url,
@@ -274,6 +292,8 @@ export class GitHubService {
     localPath: string,
     branch = 'main'
   ): Promise<Result<IGitHubPushResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    fileLog.info('GITHUB', 'Pushing to repository', { localPath, branch })
+
     const result = await tryCatchAsync(async () => {
       const gitInit = Bun.spawn(['git', 'init'], {
         cwd: localPath,
@@ -326,8 +346,17 @@ export class GitHubService {
       }
 
       log.success('Code pushed to GitHub')
+      fileLog.info('GITHUB', 'Code pushed successfully', { localPath, branch })
       return { success: true } as IGitHubPushResult
     }, AppErrorCode.GITHUB_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('GITHUB', 'Failed to push to repository', {
+        localPath,
+        branch,
+        error: result.error.message
+      })
+    }
 
     return result
   }

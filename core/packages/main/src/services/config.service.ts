@@ -9,7 +9,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { ok, tryCatch, isOk, type Result, type ResultError } from '@mks2508/no-throw'
 import { type } from 'arktype'
-import { createLogger } from '../utils/index.js'
+import { createLogger, log as fileLog } from '../utils/index.js'
 import { ConfigSchema, type IConfig } from '../types/index.js'
 import { AppErrorCode } from '../types/errors.js'
 
@@ -48,6 +48,7 @@ export class ConfigService {
     if (!existsSync(CONFIG_DIR)) {
       mkdirSync(CONFIG_DIR, { recursive: true })
       log.info(`Created config directory: ${CONFIG_DIR}`)
+      fileLog.info('CONFIG', 'Config directory created', { path: CONFIG_DIR })
     }
   }
 
@@ -116,6 +117,11 @@ export class ConfigService {
     const result = tryCatch(() => {
       writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2))
       log.success('Config saved')
+      fileLog.info('CONFIG', 'Config saved', {
+        hasGitHub: !!this.config.github?.token,
+        hasCoolify: !!this.config.coolify?.token,
+        hasTelegram: !!(this.config.telegram?.apiId && this.config.telegram?.apiHash)
+      })
     }, AppErrorCode.CONFIG_ERROR)
 
     return result
@@ -160,6 +166,7 @@ export class ConfigService {
     const lastKey = keys[keys.length - 1]!
     current[lastKey] = value
 
+    fileLog.info('CONFIG', 'Config value set', { key, valueType: typeof value })
     return this.save()
   }
 

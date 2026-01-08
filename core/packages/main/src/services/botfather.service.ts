@@ -4,13 +4,13 @@
  * @module
  */
 
-import { ok, err, tryCatchAsync, type Result, type ResultError } from '@mks2508/no-throw'
+import { ok, err, tryCatchAsync, isErr, type Result, type ResultError } from '@mks2508/no-throw'
 import {
   BootstrapClient,
   BotFatherManager,
   EnvManager,
 } from '@mks2508/telegram-bot-manager'
-import { createLogger } from '../utils/index.js'
+import { createLogger, log as fileLog } from '../utils/index.js'
 import { getConfigService } from './config.service.js'
 import { AppErrorCode } from '../types/errors.js'
 
@@ -81,11 +81,14 @@ export class BotFatherService {
       log.error('Telegram API credentials not configured')
       log.info('Configure with: mbf config set telegram.apiId <id>')
       log.info('Configure with: mbf config set telegram.apiHash <hash>')
+      fileLog.error('BOTFATHER', 'Telegram API credentials not configured', { reason: 'not_configured' })
       return err({
         code: AppErrorCode.BOTFATHER_ERROR,
         message: 'Telegram API credentials not configured',
       })
     }
+
+    fileLog.info('BOTFATHER', 'Initializing Telegram connection', { apiId: telegramCreds.apiId })
 
     const result = await tryCatchAsync(async () => {
       this.client = new BootstrapClient({
@@ -98,7 +101,12 @@ export class BotFatherService {
 
       this.botFatherManager = new BotFatherManager(this.client)
       log.success('Connected to Telegram')
+      fileLog.info('BOTFATHER', 'Connected to Telegram successfully')
     }, AppErrorCode.BOTFATHER_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('BOTFATHER', 'Failed to connect to Telegram', { error: result.error.message })
+    }
 
     return result
   }
@@ -113,6 +121,7 @@ export class BotFatherService {
     options: IBotCreateOptions
   ): Promise<Result<IBotCreateResult, ResultError<typeof AppErrorCode.BOTFATHER_ERROR>>> {
     if (!this.botFatherManager) {
+      fileLog.error('BOTFATHER', 'BotFather service not initialized', { reason: 'not_initialized' })
       return err({
         code: AppErrorCode.BOTFATHER_ERROR,
         message: 'BotFather service not initialized. Call init() first.',
@@ -123,6 +132,11 @@ export class BotFatherService {
       options.botUsername || this.generateBotUsername(options.botName)
 
     log.info(`Creating bot: ${options.botName} (@${botUsername})`)
+    fileLog.info('BOTFATHER', 'Creating bot', {
+      botName: options.botName,
+      botUsername,
+      hasDescription: !!options.description
+    })
 
     const result = await tryCatchAsync(async () => {
       const createResult = await this.botFatherManager!.createBot({
@@ -135,6 +149,9 @@ export class BotFatherService {
       }
 
       log.success(`Bot created: @${createResult.botUsername}`)
+      fileLog.info('BOTFATHER', 'Bot created successfully', {
+        botUsername: createResult.botUsername
+      })
 
       if (options.description && createResult.botUsername) {
         await this.botFatherManager!.setDescription(
@@ -163,6 +180,14 @@ export class BotFatherService {
         botUsername: createResult.botUsername!,
       }
     }, AppErrorCode.BOTFATHER_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('BOTFATHER', 'Failed to create bot', {
+        botName: options.botName,
+        botUsername,
+        error: result.error.message
+      })
+    }
 
     return result
   }
@@ -313,7 +338,12 @@ export class BotFatherService {
       this.client = null
       this.botFatherManager = null
       log.info('Disconnected from Telegram')
+      fileLog.info('BOTFATHER', 'Disconnected from Telegram')
     }, AppErrorCode.BOTFATHER_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('BOTFATHER', 'Failed to disconnect', { error: result.error.message })
+    }
 
     return result
   }

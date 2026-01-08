@@ -5,7 +5,7 @@
  */
 
 import { ok, err, type Result, type ResultError } from '@mks2508/no-throw'
-import { createLogger } from '../utils/index.js'
+import { createLogger, log as fileLog } from '../utils/index.js'
 import { getConfigService } from './config.service.js'
 import {
   type ICoolifyAppOptions,
@@ -77,16 +77,19 @@ export class CoolifyService {
     if (!this.baseUrl) {
       log.error('No Coolify URL configured')
       log.info('Configure with: mbf config set coolify.url <url>')
+      fileLog.error('COOLIFY', 'No Coolify URL configured', { reason: 'not_configured' })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'No Coolify URL configured' })
     }
 
     if (!this.token) {
       log.error('No Coolify token configured')
       log.info('Configure with: mbf config set coolify.token <token>')
+      fileLog.error('COOLIFY', 'No Coolify token configured', { reason: 'not_configured' })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'No Coolify token configured' })
     }
 
     log.debug('Coolify connection configured')
+    fileLog.info('COOLIFY', 'Coolify service initialized', { baseUrl: this.baseUrl })
     return ok(undefined)
   }
 
@@ -156,6 +159,11 @@ export class CoolifyService {
     }
 
     log.info(`Deploying application ${options.uuid || options.tag}`)
+    fileLog.info('COOLIFY', 'Deploying application', {
+      uuid: options.uuid,
+      tag: options.tag,
+      force: options.force
+    })
 
     const result = await this.request<{
       resource_uuid: string
@@ -171,10 +179,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Deployment failed: ${result.error}`)
+      fileLog.error('COOLIFY', 'Deployment failed', {
+        uuid: options.uuid,
+        tag: options.tag,
+        error: result.error
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Deployment started: ${result.data?.deployment_uuid}`)
+    fileLog.info('COOLIFY', 'Deployment started', {
+      deploymentUuid: result.data?.deployment_uuid,
+      resourceUuid: result.data?.resource_uuid
+    })
     return ok({
       success: true,
       deploymentUuid: result.data?.deployment_uuid,
@@ -192,6 +209,12 @@ export class CoolifyService {
     options: ICoolifyAppOptions
   ): Promise<Result<ICoolifyAppResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     log.info(`Creating application ${options.name}`)
+    fileLog.info('COOLIFY', 'Creating application', {
+      name: options.name,
+      serverUuid: options.serverUuid,
+      destinationUuid: options.destinationUuid,
+      repoUrl: options.githubRepoUrl
+    })
 
     const result = await this.request<{ uuid: string }>('/applications', {
       method: 'POST',
@@ -212,10 +235,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to create application: ${result.error}`)
+      fileLog.error('COOLIFY', 'Failed to create application', {
+        name: options.name,
+        error: result.error,
+        status: result.status
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application created: ${result.data?.uuid}`)
+    fileLog.info('COOLIFY', 'Application created', {
+      name: options.name,
+      uuid: result.data?.uuid
+    })
     return ok({
       success: true,
       uuid: result.data?.uuid,
@@ -234,6 +266,10 @@ export class CoolifyService {
     envVars: Record<string, string>
   ): Promise<Result<void, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     log.info(`Setting environment variables for ${appUuid}`)
+    fileLog.info('COOLIFY', 'Setting environment variables', {
+      appUuid,
+      varCount: Object.keys(envVars).length
+    })
 
     const envArray = Object.entries(envVars).map(([key, value]) => ({
       key,
@@ -248,10 +284,15 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to set env vars: ${result.error}`)
+      fileLog.error('COOLIFY', 'Failed to set environment variables', {
+        appUuid,
+        error: result.error
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success('Environment variables set')
+    fileLog.info('COOLIFY', 'Environment variables set', { appUuid })
     return ok(undefined)
   }
 

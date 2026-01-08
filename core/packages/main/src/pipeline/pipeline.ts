@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { ok, err, isErr, type Result, type ResultError } from '@mks2508/no-throw'
-import { createLogger } from '../utils/index.js'
+import { createLogger, log as fileLog } from '../utils/index.js'
 import { getConfigService } from '../services/config.service.js'
 import { getGitHubService } from '../services/github.service.js'
 import { getCoolifyService } from '../services/coolify.service.js'
@@ -62,57 +62,112 @@ export class Pipeline {
       errors: [],
     }
 
+    const startTime = Date.now()
+
     log.info(`Starting pipeline for bot: ${options.botName}`)
+    fileLog.pipelineStart({
+      botName: options.botName,
+      options: {
+        skipBotFather: options.skipBotFather,
+        createGitHubRepo: options.createGitHubRepo,
+        deployToCoolify: options.deployToCoolify
+      }
+    })
 
     // Step 1: BotFather automation
     if (!options.skipBotFather) {
+      fileLog.pipelineStep('botfather', { botName: options.botName })
       const botResult = await this.runBotFatherStep(options)
       if (isErr(botResult)) {
         result.errors.push(botResult.error.message)
+        fileLog.pipelineStepError('botfather', botResult.error.message)
+        fileLog.pipelineComplete({
+          botName: options.botName,
+          success: false,
+          durationMs: Date.now() - startTime,
+          stepsCompleted: 0,
+          errors: result.errors
+        })
         return ok(result)
       }
       result.botToken = botResult.value.token
       result.botUsername = botResult.value.username
+      fileLog.info('PIPELINE_STEP', 'BotFather step completed', {
+        botUsername: result.botUsername
+      })
     }
 
     // Step 2: Scaffold project with bunspace
+    fileLog.pipelineStep('scaffold', { botName: options.botName })
     const scaffoldResult = await this.runScaffoldStep(options)
     if (isErr(scaffoldResult)) {
       result.errors.push(scaffoldResult.error.message)
+      fileLog.pipelineStepError('scaffold', scaffoldResult.error.message)
+      fileLog.pipelineComplete({
+        botName: options.botName,
+        success: false,
+        durationMs: Date.now() - startTime,
+        stepsCompleted: 1,
+        errors: result.errors
+      })
       return ok(result)
     }
+    fileLog.info('PIPELINE_STEP', 'Scaffold step completed', {
+      projectPath: scaffoldResult.value.projectPath
+    })
 
     // Step 3: Create GitHub repository
     if (options.createGitHubRepo && scaffoldResult.value.projectPath) {
+      fileLog.pipelineStep('github', { botName: options.botName, projectPath: scaffoldResult.value.projectPath })
       const githubResult = await this.runGitHubStep(
         options,
         scaffoldResult.value.projectPath
       )
       if (isErr(githubResult)) {
         result.errors.push(githubResult.error.message)
+        fileLog.pipelineStepError('github', githubResult.error.message)
       } else {
         result.githubRepoUrl = githubResult.value.repoUrl
+        fileLog.info('PIPELINE_STEP', 'GitHub step completed', {
+          repoUrl: result.githubRepoUrl
+        })
       }
     }
 
     // Step 4: Deploy to Coolify
     if (options.deployToCoolify && result.githubRepoUrl) {
+      fileLog.pipelineStep('coolify', { botName: options.botName, repoUrl: result.githubRepoUrl })
       const coolifyResult = await this.runCoolifyStep(options, result)
       if (isErr(coolifyResult)) {
         result.errors.push(coolifyResult.error.message)
+        fileLog.pipelineStepError('coolify', coolifyResult.error.message)
       } else {
         result.coolifyAppUuid = coolifyResult.value.appUuid
         result.deploymentUrl = coolifyResult.value.deploymentUrl
+        fileLog.info('PIPELINE_STEP', 'Coolify step completed', {
+          appUuid: result.coolifyAppUuid,
+          deploymentUrl: result.deploymentUrl
+        })
       }
     }
 
     result.success = result.errors.length === 0
+    const durationMs = Date.now() - startTime
+    const stepsCompleted = result.errors.length === 0 ? 4 : (result.errors.length > 0 ? 1 + (result.githubRepoUrl ? 1 : 0) : 0)
 
     if (result.success) {
       log.success('Pipeline completed successfully')
     } else {
       log.warn(`Pipeline completed with ${result.errors.length} error(s)`)
     }
+
+    fileLog.pipelineComplete({
+      botName: options.botName,
+      success: result.success,
+      durationMs,
+      stepsCompleted,
+      errors: result.errors
+    })
 
     return ok(result)
   }
