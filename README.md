@@ -148,7 +148,8 @@ Use mks-bot-father programmatically in your TypeScript/JavaScript projects.
 ### Pipeline
 
 ```typescript
-import { Pipeline, getPipeline } from '@mks2508/mks-bot-father'
+import { isOk } from '@mks2508/no-throw'
+import { getPipeline } from '@mks2508/mks-bot-father'
 
 const pipeline = getPipeline()
 
@@ -159,43 +160,91 @@ const result = await pipeline.run({
   deployToCoolify: true,
 })
 
-if (result.success) {
-  console.log('Bot created:', result.botUsername)
-  console.log('Token:', result.botToken)
-  console.log('GitHub:', result.githubRepoUrl)
-  console.log('Coolify:', result.deploymentUrl)
+if (isOk(result)) {
+  const data = result.value
+  if (data.success) {
+    console.log('Bot created:', data.botUsername)
+    console.log('Token:', data.botToken)
+    console.log('GitHub:', data.githubRepoUrl)
+    console.log('Coolify:', data.deploymentUrl)
+  } else {
+    console.error('Pipeline errors:', data.errors)
+  }
 } else {
-  console.error('Errors:', result.errors)
+  console.error('Error:', result.error.message)
 }
 ```
 
-### Individual Managers
+### Individual Services
+
+All services use the **Result pattern** from `@mks2508/no-throw` for type-safe error handling.
 
 ```typescript
+import { isOk, isErr } from '@mks2508/no-throw'
 import {
-  getConfigManager,
-  getGitHubManager,
-  getCoolifyManager,
+  getConfigService,
+  getGitHubService,
+  getCoolifyService,
+  getBotFatherService,
 } from '@mks2508/mks-bot-father'
 
 // Configuration
-const config = getConfigManager()
+const config = getConfigService()
 config.set('github.token', 'ghp_xxx')
 const token = config.getGitHubToken()
 
 // GitHub
-const github = getGitHubManager()
-await github.init()
-const repo = await github.createRepo({
-  name: 'my-bot',
-  description: 'My Telegram bot',
-  private: false,
-})
+const github = getGitHubService()
+const initResult = await github.init()
+
+if (isOk(initResult)) {
+  const repoResult = await github.createRepo({
+    name: 'my-bot',
+    description: 'My Telegram bot',
+    private: false,
+  })
+
+  if (isOk(repoResult)) {
+    console.log('Repo created:', repoResult.value.repoUrl)
+  } else {
+    console.error('Failed:', repoResult.error.message)
+  }
+}
 
 // Coolify
-const coolify = getCoolifyManager()
+const coolify = getCoolifyService()
 await coolify.init()
-await coolify.deploy({ uuid: 'app-uuid' })
+const deployResult = await coolify.deploy({ uuid: 'app-uuid' })
+
+if (isErr(deployResult)) {
+  console.error('Deploy failed:', deployResult.error.message)
+}
+
+// BotFather
+const botfather = getBotFatherService()
+await botfather.init()
+const botResult = await botfather.createBot({
+  botName: 'My Bot',
+  description: 'A cool bot',
+})
+
+if (isOk(botResult)) {
+  console.log('Bot token:', botResult.value.botToken)
+  console.log('Username:', botResult.value.botUsername)
+}
+await botfather.disconnect()
+```
+
+### Types
+
+```typescript
+import type {
+  IConfig,
+  IPipelineOptions,
+  IPipelineResult,
+  IGitHubRepoOptions,
+  ICoolifyDeployOptions,
+} from '@mks2508/mks-bot-father'
 ```
 
 ## Configuration
