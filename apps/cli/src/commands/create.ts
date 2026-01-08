@@ -1,9 +1,15 @@
+/**
+ * Create command for mks-bot-father CLI.
+ *
+ * @module
+ */
+
 import ora from 'ora'
 import chalk from 'chalk'
-import { getPipeline } from '../../pipeline.js'
-import type { IPipelineOptions } from '../../types.js'
+import { isErr } from '@mks2508/no-throw'
+import { getPipeline, type IPipelineOptions } from '@mks2508/mks-bot-father'
 
-interface CreateOptions {
+interface ICreateOptions {
   description?: string
   github?: boolean
   githubOrg?: string
@@ -16,7 +22,7 @@ interface CreateOptions {
 
 export async function handleCreate(
   name: string,
-  options: CreateOptions
+  options: ICreateOptions
 ): Promise<void> {
   console.log()
   console.log(chalk.cyan.bold('🤖 MKS Bot Father'))
@@ -40,9 +46,7 @@ export async function handleCreate(
   console.log(
     `  ${pipelineOptions.skipBotFather ? chalk.gray('○') : chalk.green('●')} BotFather automation`
   )
-  console.log(
-    `  ${chalk.green('●')} Project scaffolding`
-  )
+  console.log(`  ${chalk.green('●')} Project scaffolding`)
   console.log(
     `  ${pipelineOptions.createGitHubRepo ? chalk.green('●') : chalk.gray('○')} GitHub repository`
   )
@@ -56,30 +60,42 @@ export async function handleCreate(
   try {
     const result = await pipeline.run(pipelineOptions)
 
-    if (result.success) {
+    if (isErr(result)) {
+      spinner.fail(chalk.red('Pipeline error'))
+      console.log()
+      console.log(`  Error: ${chalk.red(result.error.message)}`)
+      console.log()
+      process.exit(1)
+    }
+
+    const pipelineResult = result.value
+
+    if (pipelineResult.success) {
       spinner.succeed(chalk.green('Pipeline completed successfully!'))
       console.log()
 
-      if (result.botUsername) {
+      if (pipelineResult.botUsername) {
         console.log(chalk.white('Bot:'))
-        console.log(`  Username: ${chalk.cyan(`@${result.botUsername}`)}`)
-        if (result.botToken) {
-          console.log(`  Token: ${chalk.gray(result.botToken.slice(0, 20) + '...')}`)
+        console.log(`  Username: ${chalk.cyan(`@${pipelineResult.botUsername}`)}`)
+        if (pipelineResult.botToken) {
+          console.log(
+            `  Token: ${chalk.gray(pipelineResult.botToken.slice(0, 20) + '...')}`
+          )
         }
         console.log()
       }
 
-      if (result.githubRepoUrl) {
+      if (pipelineResult.githubRepoUrl) {
         console.log(chalk.white('GitHub:'))
-        console.log(`  Repository: ${chalk.cyan(result.githubRepoUrl)}`)
+        console.log(`  Repository: ${chalk.cyan(pipelineResult.githubRepoUrl)}`)
         console.log()
       }
 
-      if (result.coolifyAppUuid) {
+      if (pipelineResult.coolifyAppUuid) {
         console.log(chalk.white('Coolify:'))
-        console.log(`  App UUID: ${chalk.cyan(result.coolifyAppUuid)}`)
-        if (result.deploymentUrl) {
-          console.log(`  Dashboard: ${chalk.cyan(result.deploymentUrl)}`)
+        console.log(`  App UUID: ${chalk.cyan(pipelineResult.coolifyAppUuid)}`)
+        if (pipelineResult.deploymentUrl) {
+          console.log(`  Dashboard: ${chalk.cyan(pipelineResult.deploymentUrl)}`)
         }
         console.log()
       }
@@ -92,9 +108,9 @@ export async function handleCreate(
       spinner.fail(chalk.red('Pipeline failed'))
       console.log()
 
-      if (result.errors.length > 0) {
+      if (pipelineResult.errors.length > 0) {
         console.log(chalk.red('Errors:'))
-        for (const error of result.errors) {
+        for (const error of pipelineResult.errors) {
           console.log(`  ${chalk.red('•')} ${error}`)
         }
         console.log()

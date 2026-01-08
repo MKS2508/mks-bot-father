@@ -1,12 +1,19 @@
+/**
+ * Config command for mks-bot-father CLI.
+ *
+ * @module
+ */
+
 import chalk from 'chalk'
-import { getConfigManager, CONFIG_FILE } from '../../config/index.js'
+import { isOk } from '@mks2508/no-throw'
+import { getConfigService, CONFIG_FILE } from '@mks2508/mks-bot-father'
 
 export async function handleConfig(
   action: string,
   key?: string,
   value?: string
 ): Promise<void> {
-  const config = getConfigManager()
+  const config = getConfigService()
 
   switch (action) {
     case 'get': {
@@ -54,8 +61,13 @@ export async function handleConfig(
       else if (value === 'false') parsedValue = false
       else if (/^\d+$/.test(value)) parsedValue = parseInt(value, 10)
 
-      config.set(key, parsedValue)
-      console.log(chalk.green(`✓ Set ${key}`))
+      const result = config.set(key, parsedValue)
+      if (isOk(result)) {
+        console.log(chalk.green(`✓ Set ${key}`))
+      } else {
+        console.log(chalk.red(`Failed to set ${key}: ${result.error.message}`))
+        process.exit(1)
+      }
       break
     }
 

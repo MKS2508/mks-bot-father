@@ -1,54 +1,90 @@
 /**
- * GitHub repository management for mks-bot-father.
+ * GitHub service for mks-bot-father.
  *
  * @module
  */
 
-import { component } from '@mks2508/better-logger'
-import { getConfigManager } from '../config/index.js'
-import type { IGitHubRepoOptions, IGitHubRepoResult } from '../types.js'
+import { ok, err, tryCatchAsync, isOk, isErr, type Result, type ResultError } from '@mks2508/no-throw'
+import { createLogger } from '../utils/index.js'
+import { getConfigService } from './config.service.js'
+import {
+  type IGitHubRepoOptions,
+  type IGitHubRepoResult,
+  type IGitHubPushResult,
+} from '../types/index.js'
+import { AppErrorCode } from '../types/errors.js'
 
-const log = component('GitHub')
+const log = createLogger('GitHubService')
 
 const GITHUB_API = 'https://api.github.com'
 
 /**
- * Manages GitHub repository operations.
+ * GitHub API response type.
+ */
+interface IGitHubApiResponse<T> {
+  data?: T
+  error?: string
+  status: number
+}
+
+/**
+ * GitHub service for repository operations.
  *
  * @example
  * ```typescript
- * const github = getGitHubManager()
- * await github.init()
- * const result = await github.createRepo({ name: 'my-bot' })
+ * const github = getGitHubService()
+ * const initResult = await github.init()
+ * if (isErr(initResult)) {
+ *   console.error(initResult.error.message)
+ *   return
+ * }
+ *
+ * const repoResult = await github.createRepo({ name: 'my-bot' })
+ * if (isOk(repoResult)) {
+ *   console.log('Repo URL:', repoResult.value.repoUrl)
+ * }
  * ```
  */
-export class GitHubManager {
+export class GitHubService {
   private token: string | undefined
 
   /**
-   * Initializes the GitHub manager by resolving the token.
+   * Initializes the GitHub service by resolving the token.
    *
-   * @returns True if initialization succeeded
+   * @returns Result indicating success or error
    */
-  async init(): Promise<boolean> {
-    const config = getConfigManager()
-    this.token = await config.resolveGitHubToken()
+  async init(): Promise<Result<void, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const config = getConfigService()
+    const tokenResult = await config.resolveGitHubToken()
+
+    if (isErr(tokenResult)) {
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: tokenResult.error.message })
+    }
+
+    this.token = tokenResult.value
 
     if (!this.token) {
       log.error('No GitHub token available')
       log.info('Configure with: mbf config set github.token <token>')
       log.info('Or authenticate with: gh auth login')
-      return false
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: 'No GitHub token available' })
     }
 
     log.debug('GitHub token resolved')
-    return true
+    return ok(undefined)
   }
 
+  /**
+   * Makes a request to the GitHub API.
+   *
+   * @param endpoint - API endpoint
+   * @param options - Fetch options
+   * @returns API response with data or error
+   */
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
-  ): Promise<{ data?: T; error?: string; status: number }> {
+  ): Promise<IGitHubApiResponse<T>> {
     if (!this.token) {
       return { error: 'No GitHub token', status: 0 }
     }
@@ -88,13 +124,19 @@ export class GitHubManager {
    */
   async createRepoFromTemplate(
     options: IGitHubRepoOptions
-  ): Promise<IGitHubRepoResult> {
+  ): Promise<Result<IGitHubRepoResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
     const templateOwner = options.templateOwner || 'MKS2508'
     const templateRepo = options.templateRepo || 'mks-telegram-bot'
-    const owner = options.owner || (await this.getAuthenticatedUser())
+
+    const userResult = await this.getAuthenticatedUser()
+    if (isErr(userResult)) {
+      return err(userResult.error)
+    }
+
+    const owner = options.owner || userResult.value
 
     if (!owner) {
-      return { success: false, error: 'Could not determine repository owner' }
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: 'Could not determine repository owner' })
     }
 
     log.info(`Creating repo ${options.name} from template ${templateOwner}/${templateRepo}`)
@@ -116,15 +158,15 @@ export class GitHubManager {
 
     if (result.error) {
       log.error(`Failed to create repo: ${result.error}`)
-      return { success: false, error: result.error }
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
 
     log.success(`Repository created: ${result.data?.html_url}`)
-    return {
+    return ok({
       success: true,
       repoUrl: result.data?.html_url,
       cloneUrl: result.data?.clone_url,
-    }
+    })
   }
 
   /**
@@ -133,16 +175,24 @@ export class GitHubManager {
    * @param options - Repository options
    * @returns Result with repository URL and clone URL
    */
-  async createRepo(options: IGitHubRepoOptions): Promise<IGitHubRepoResult> {
-    const owner = options.owner || (await this.getAuthenticatedUser())
+  async createRepo(
+    options: IGitHubRepoOptions
+  ): Promise<Result<IGitHubRepoResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const userResult = await this.getAuthenticatedUser()
+    if (isErr(userResult)) {
+      return err(userResult.error)
+    }
+
+    const owner = options.owner || userResult.value
 
     if (!owner) {
-      return { success: false, error: 'Could not determine repository owner' }
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: 'Could not determine repository owner' })
     }
 
     log.info(`Creating repo ${options.name}`)
 
-    const isOrg = await this.isOrganization(owner)
+    const isOrgResult = await this.isOrganization(owner)
+    const isOrg = isOk(isOrgResult) && isOrgResult.value
     const endpoint = isOrg ? `/orgs/${owner}/repos` : '/user/repos'
 
     const result = await this.request<{
@@ -161,36 +211,42 @@ export class GitHubManager {
 
     if (result.error) {
       log.error(`Failed to create repo: ${result.error}`)
-      return { success: false, error: result.error }
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
 
     log.success(`Repository created: ${result.data?.html_url}`)
-    return {
+    return ok({
       success: true,
       repoUrl: result.data?.html_url,
       cloneUrl: result.data?.clone_url,
-    }
+    })
   }
 
   /**
    * Gets the authenticated GitHub username.
    *
-   * @returns The username or undefined if not authenticated
+   * @returns Result with the username or error
    */
-  async getAuthenticatedUser(): Promise<string | undefined> {
+  async getAuthenticatedUser(): Promise<Result<string | undefined, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
     const result = await this.request<{ login: string }>('/user')
-    return result.data?.login
+    if (result.error) {
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
+    }
+    return ok(result.data?.login)
   }
 
   /**
    * Checks if a name belongs to an organization.
    *
    * @param name - The username or organization name
-   * @returns True if it's an organization
+   * @returns Result with true if it's an organization
    */
-  async isOrganization(name: string): Promise<boolean> {
+  async isOrganization(name: string): Promise<Result<boolean, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
     const result = await this.request<{ type: string }>(`/users/${name}`)
-    return result.data?.type === 'Organization'
+    if (result.error) {
+      return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
+    }
+    return ok(result.data?.type === 'Organization')
   }
 
   /**
@@ -198,11 +254,11 @@ export class GitHubManager {
    *
    * @param owner - Repository owner
    * @param repo - Repository name
-   * @returns True if the repository exists
+   * @returns Result with true if the repository exists
    */
-  async repoExists(owner: string, repo: string): Promise<boolean> {
+  async repoExists(owner: string, repo: string): Promise<Result<boolean, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
     const result = await this.request(`/repos/${owner}/${repo}`)
-    return result.status === 200
+    return ok(result.status === 200)
   }
 
   /**
@@ -211,14 +267,14 @@ export class GitHubManager {
    * @param repoUrl - The repository clone URL
    * @param localPath - Path to the local project
    * @param branch - Branch name to push to
-   * @returns Result indicating success or failure
+   * @returns Result indicating success or error
    */
   async pushToRepo(
     repoUrl: string,
     localPath: string,
     branch = 'main'
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
+  ): Promise<Result<IGitHubPushResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const result = await tryCatchAsync(async () => {
       const gitInit = Bun.spawn(['git', 'init'], {
         cwd: localPath,
         stdout: 'pipe',
@@ -266,28 +322,27 @@ export class GitHubManager {
 
       if (pushExitCode !== 0) {
         const stderr = await new Response(gitPush.stderr).text()
-        return { success: false, error: stderr || 'Failed to push' }
+        throw new Error(stderr || 'Failed to push')
       }
 
       log.success('Code pushed to GitHub')
-      return { success: true }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      return { success: false, error: message }
-    }
+      return { success: true } as IGitHubPushResult
+    }, AppErrorCode.GITHUB_ERROR)
+
+    return result
   }
 }
 
-let instance: GitHubManager | null = null
+let instance: GitHubService | null = null
 
 /**
- * Gets the singleton GitHubManager instance.
+ * Gets the singleton GitHubService instance.
  *
- * @returns The GitHubManager instance
+ * @returns The GitHubService instance
  */
-export function getGitHubManager(): GitHubManager {
+export function getGitHubService(): GitHubService {
   if (!instance) {
-    instance = new GitHubManager()
+    instance = new GitHubService()
   }
   return instance
 }

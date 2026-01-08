@@ -1,24 +1,31 @@
+/**
+ * Deploy command for mks-bot-father CLI.
+ *
+ * @module
+ */
+
 import ora from 'ora'
 import chalk from 'chalk'
-import { getCoolifyManager } from '../../coolify/index.js'
+import { isOk, isErr } from '@mks2508/no-throw'
+import { getCoolifyService } from '@mks2508/mks-bot-father'
 
-interface DeployOptions {
+interface IDeployOptions {
   force?: boolean
   tag?: string
 }
 
 export async function handleDeploy(
   name: string,
-  options: DeployOptions
+  options: IDeployOptions
 ): Promise<void> {
   console.log()
   console.log(chalk.cyan.bold('🚀 Deploy to Coolify'))
   console.log()
 
-  const coolify = getCoolifyManager()
-  const initialized = await coolify.init()
+  const coolify = getCoolifyService()
+  const initResult = await coolify.init()
 
-  if (!initialized) {
+  if (isErr(initResult)) {
     console.log(chalk.red('Coolify not configured'))
     console.log()
     console.log('Configure with:')
@@ -37,16 +44,16 @@ export async function handleDeploy(
       force: options.force,
     })
 
-    if (result.success) {
+    if (isOk(result)) {
       spinner.succeed(chalk.green('Deployment started!'))
       console.log()
-      console.log(`  Deployment UUID: ${chalk.cyan(result.deploymentUuid)}`)
-      console.log(`  Resource UUID: ${chalk.cyan(result.resourceUuid)}`)
+      console.log(`  Deployment UUID: ${chalk.cyan(result.value.deploymentUuid)}`)
+      console.log(`  Resource UUID: ${chalk.cyan(result.value.resourceUuid)}`)
       console.log()
     } else {
       spinner.fail(chalk.red('Deployment failed'))
       console.log()
-      console.log(`  Error: ${chalk.red(result.error)}`)
+      console.log(`  Error: ${chalk.red(result.error.message)}`)
       console.log()
       process.exit(1)
     }

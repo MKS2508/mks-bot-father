@@ -1,0 +1,35 @@
+{
+  "name": "@mks2508/mks-bot-father-cli",
+  "version": "0.1.0",
+  "description": "CLI for mks-bot-father - Telegram bot automation pipeline",
+  "type": "module",
+  "bin": {
+    "mks-bot-father": "./dist/cli.js",
+    "mbf": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outfile ./dist/cli.js --target node --minify",
+    "typecheck": "tsgo --noEmit",
+    "dev": "bun --watch src/index.ts"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "botfather",
+    "cli",
+    "automation"
+  ],
+  "author": "MKS2508",
+  "license": "MIT",
+  "dependencies": {
+    "@mks2508/mks-bot-father": "workspace:*",
+    "@mks2508/better-logger": "^4.0.0",
+    "commander": "^14.0.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.9.0"
+  }
+}

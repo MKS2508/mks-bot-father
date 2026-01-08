@@ -1,64 +1,106 @@
 /**
- * Coolify deployment management for mks-bot-father.
+ * Coolify service for mks-bot-father.
  *
  * @module
  */
 
-import { component } from '@mks2508/better-logger'
-import { getConfigManager } from '../config/index.js'
-import type {
-  ICoolifyAppOptions,
-  ICoolifyAppResult,
-  ICoolifyDeployOptions,
-  ICoolifyDeployResult,
-} from '../types.js'
+import { ok, err, type Result, type ResultError } from '@mks2508/no-throw'
+import { createLogger } from '../utils/index.js'
+import { getConfigService } from './config.service.js'
+import {
+  type ICoolifyAppOptions,
+  type ICoolifyAppResult,
+  type ICoolifyDeployOptions,
+  type ICoolifyDeployResult,
+} from '../types/index.js'
+import { AppErrorCode } from '../types/errors.js'
 
-const log = component('Coolify')
+const log = createLogger('CoolifyService')
 
 /**
- * Manages Coolify deployment operations.
+ * Coolify API response type.
+ */
+interface ICoolifyApiResponse<T> {
+  data?: T
+  error?: string
+  status: number
+}
+
+/**
+ * Coolify server type.
+ */
+export interface ICoolifyServer {
+  uuid: string
+  name: string
+}
+
+/**
+ * Coolify destination type.
+ */
+export interface ICoolifyDestination {
+  uuid: string
+  name: string
+}
+
+/**
+ * Coolify service for deployment operations.
  *
  * @example
  * ```typescript
- * const coolify = getCoolifyManager()
- * await coolify.init()
- * await coolify.deploy({ uuid: 'app-uuid' })
+ * const coolify = getCoolifyService()
+ * const initResult = await coolify.init()
+ * if (isErr(initResult)) {
+ *   console.error(initResult.error.message)
+ *   return
+ * }
+ *
+ * const deployResult = await coolify.deploy({ uuid: 'app-uuid' })
+ * if (isOk(deployResult)) {
+ *   console.log('Deployment UUID:', deployResult.value.deploymentUuid)
+ * }
  * ```
  */
-export class CoolifyManager {
+export class CoolifyService {
   private baseUrl: string | undefined
   private token: string | undefined
 
   /**
-   * Initializes the Coolify manager by loading configuration.
+   * Initializes the Coolify service by loading configuration.
    *
-   * @returns True if initialization succeeded
+   * @returns Result indicating success or error
    */
-  async init(): Promise<boolean> {
-    const config = getConfigManager()
+  async init(): Promise<Result<void, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const config = getConfigService()
     this.baseUrl = config.getCoolifyUrl()
     this.token = config.getCoolifyToken()
 
     if (!this.baseUrl) {
       log.error('No Coolify URL configured')
       log.info('Configure with: mbf config set coolify.url <url>')
-      return false
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'No Coolify URL configured' })
     }
 
     if (!this.token) {
       log.error('No Coolify token configured')
       log.info('Configure with: mbf config set coolify.token <token>')
-      return false
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'No Coolify token configured' })
     }
 
     log.debug('Coolify connection configured')
-    return true
+    return ok(undefined)
   }
 
+  /**
+   * Makes a request to the Coolify API.
+   *
+   * @param endpoint - API endpoint
+   * @param options - Fetch options
+   * @returns API response with data or error
+   */
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
-  ): Promise<{ data?: T; error?: string; status: number }> {
+  ): Promise<ICoolifyApiResponse<T>> {
     if (!this.baseUrl || !this.token) {
       return { error: 'Coolify not configured', status: 0 }
     }
@@ -104,11 +146,13 @@ export class CoolifyManager {
    * Deploys an application.
    *
    * @param options - Deployment options
-   * @returns Result with deployment and resource UUIDs
+   * @returns Result with deployment info or error
    */
-  async deploy(options: ICoolifyDeployOptions): Promise<ICoolifyDeployResult> {
+  async deploy(
+    options: ICoolifyDeployOptions
+  ): Promise<Result<ICoolifyDeployResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     if (!options.uuid && !options.tag) {
-      return { success: false, error: 'Either uuid or tag is required' }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'Either uuid or tag is required' })
     }
 
     log.info(`Deploying application ${options.uuid || options.tag}`)
@@ -127,26 +171,26 @@ export class CoolifyManager {
 
     if (result.error) {
       log.error(`Deployment failed: ${result.error}`)
-      return { success: false, error: result.error }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Deployment started: ${result.data?.deployment_uuid}`)
-    return {
+    return ok({
       success: true,
       deploymentUuid: result.data?.deployment_uuid,
       resourceUuid: result.data?.resource_uuid,
-    }
+    })
   }
 
   /**
    * Creates a new application in Coolify.
    *
    * @param options - Application options
-   * @returns Result with application UUID
+   * @returns Result with application UUID or error
    */
   async createApplication(
     options: ICoolifyAppOptions
-  ): Promise<ICoolifyAppResult> {
+  ): Promise<Result<ICoolifyAppResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     log.info(`Creating application ${options.name}`)
 
     const result = await this.request<{ uuid: string }>('/applications', {
@@ -168,14 +212,14 @@ export class CoolifyManager {
 
     if (result.error) {
       log.error(`Failed to create application: ${result.error}`)
-      return { success: false, error: result.error }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application created: ${result.data?.uuid}`)
-    return {
+    return ok({
       success: true,
       uuid: result.data?.uuid,
-    }
+    })
   }
 
   /**
@@ -183,12 +227,12 @@ export class CoolifyManager {
    *
    * @param appUuid - Application UUID
    * @param envVars - Environment variables to set
-   * @returns Result indicating success or failure
+   * @returns Result indicating success or error
    */
   async setEnvironmentVariables(
     appUuid: string,
     envVars: Record<string, string>
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<Result<void, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     log.info(`Setting environment variables for ${appUuid}`)
 
     const envArray = Object.entries(envVars).map(([key, value]) => ({
@@ -204,72 +248,66 @@ export class CoolifyManager {
 
     if (result.error) {
       log.error(`Failed to set env vars: ${result.error}`)
-      return { success: false, error: result.error }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success('Environment variables set')
-    return { success: true }
+    return ok(undefined)
   }
 
   /**
    * Gets the status of an application.
    *
    * @param appUuid - Application UUID
-   * @returns Status string or error
+   * @returns Result with status or error
    */
   async getApplicationStatus(
     appUuid: string
-  ): Promise<{ status?: string; error?: string }> {
+  ): Promise<Result<string, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     const result = await this.request<{ status: string }>(
       `/applications/${appUuid}`
     )
 
     if (result.error) {
-      return { error: result.error }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
-    return { status: result.data?.status }
+    return ok(result.data?.status || 'unknown')
   }
 
   /**
    * Lists available servers in Coolify.
    *
-   * @returns Array of servers with UUID and name
+   * @returns Result with servers or error
    */
-  async listServers(): Promise<{
-    servers?: Array<{ uuid: string; name: string }>
-    error?: string
-  }> {
-    const result = await this.request<Array<{ uuid: string; name: string }>>(
-      '/servers'
-    )
+  async listServers(): Promise<Result<ICoolifyServer[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const result = await this.request<ICoolifyServer[]>('/servers')
 
     if (result.error) {
-      return { error: result.error }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
-    return { servers: result.data }
+    return ok(result.data || [])
   }
 
   /**
    * Gets available destinations for a server.
    *
    * @param serverUuid - Server UUID
-   * @returns Array of destinations with UUID and name
+   * @returns Result with destinations or error
    */
-  async getServerDestinations(serverUuid: string): Promise<{
-    destinations?: Array<{ uuid: string; name: string }>
-    error?: string
-  }> {
+  async getServerDestinations(
+    serverUuid: string
+  ): Promise<Result<ICoolifyDestination[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     const result = await this.request<{
-      destinations: Array<{ uuid: string; name: string }>
+      destinations: ICoolifyDestination[]
     }>(`/servers/${serverUuid}`)
 
     if (result.error) {
-      return { error: result.error }
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
-    return { destinations: result.data?.destinations }
+    return ok(result.data?.destinations || [])
   }
 
   /**
@@ -278,21 +316,21 @@ export class CoolifyManager {
    * @returns True if URL and token are configured
    */
   isConfigured(): boolean {
-    const config = getConfigManager()
+    const config = getConfigService()
     return !!(config.getCoolifyUrl() && config.getCoolifyToken())
   }
 }
 
-let instance: CoolifyManager | null = null
+let instance: CoolifyService | null = null
 
 /**
- * Gets the singleton CoolifyManager instance.
+ * Gets the singleton CoolifyService instance.
  *
- * @returns The CoolifyManager instance
+ * @returns The CoolifyService instance
  */
-export function getCoolifyManager(): CoolifyManager {
+export function getCoolifyService(): CoolifyService {
   if (!instance) {
-    instance = new CoolifyManager()
+    instance = new CoolifyService()
   }
   return instance
 }

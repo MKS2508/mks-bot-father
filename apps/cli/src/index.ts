@@ -1,9 +1,16 @@
 #!/usr/bin/env node
+/**
+ * CLI entry point for mks-bot-father.
+ *
+ * @module
+ */
+
 import { Command } from 'commander'
 import logger from '@mks2508/better-logger'
 import { handleCreate } from './commands/create.js'
 import { handleDeploy } from './commands/deploy.js'
 import { handleConfig } from './commands/config.js'
+import { handleStatus } from './commands/status.js'
 
 logger.preset('cyberpunk')
 
@@ -47,45 +54,6 @@ program
 program
   .command('status')
   .description('Show configuration status')
-  .action(async () => {
-    const { getConfigManager } = await import('../config/index.js')
-    const { getCoolifyManager } = await import('../coolify/index.js')
-    const { getGitHubManager } = await import('../github/index.js')
-
-    const config = getConfigManager()
-    const github = getGitHubManager()
-    const coolify = getCoolifyManager()
-
-    console.log('\n📋 Configuration Status\n')
-
-    // GitHub
-    const githubToken = await config.resolveGitHubToken()
-    if (githubToken) {
-      await github.init()
-      const user = await github.getAuthenticatedUser()
-      console.log(`✅ GitHub: Authenticated as ${user || 'unknown'}`)
-    } else {
-      console.log('❌ GitHub: Not configured')
-    }
-
-    // Coolify
-    if (coolify.isConfigured()) {
-      console.log(`✅ Coolify: ${config.getCoolifyUrl()}`)
-    } else {
-      console.log('❌ Coolify: Not configured')
-    }
-
-    // Telegram
-    const telegram = config.getTelegramCredentials()
-    if (telegram.apiId && telegram.apiHash) {
-      console.log('✅ Telegram: API credentials configured')
-    } else {
-      console.log('❌ Telegram: API credentials not configured')
-    }
-
-    const { ConfigManager } = await import('../config/index.js')
-    console.log(`\n📁 Config file: ${ConfigManager.getConfigPath()}`)
-    console.log()
-  })
+  .action(handleStatus)
 
 program.parse()

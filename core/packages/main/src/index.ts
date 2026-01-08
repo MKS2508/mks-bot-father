@@ -2,59 +2,85 @@
  * @mks2508/mks-bot-father
  *
  * Complete pipeline for Telegram bot automation:
- * BotFather + GitHub + Coolify deployment
+ * BotFather + GitHub + Coolify deployment.
  *
  * @module
+ *
  * @example
  * ```typescript
- * import { Pipeline, ConfigManager, GitHubManager, CoolifyManager } from '@mks2508/mks-bot-father'
+ * import {
+ *   getPipeline,
+ *   getConfigService,
+ *   getGitHubService,
+ *   getCoolifyService,
+ *   getBotFatherService,
+ * } from '@mks2508/mks-bot-father'
  *
  * // Configure
- * const config = new ConfigManager()
+ * const config = getConfigService()
  * config.set('github.token', 'ghp_xxx')
  * config.set('coolify.url', 'https://coolify.example.com')
  * config.set('coolify.token', 'xxx')
  *
- * // Run pipeline
- * const pipeline = new Pipeline()
+ * // Run full pipeline
+ * const pipeline = getPipeline()
  * const result = await pipeline.run({
  *   botName: 'my-awesome-bot',
  *   createGitHubRepo: true,
  *   deployToCoolify: true,
  * })
  *
- * console.log(result.githubRepoUrl)
- * console.log(result.coolifyAppUuid)
+ * if (result.isOk()) {
+ *   console.log(result.value.githubRepoUrl)
+ *   console.log(result.value.coolifyAppUuid)
+ * }
+ *
+ * // Or use individual services
+ * const github = getGitHubService()
+ * await github.init()
+ * const repoResult = await github.createRepo({ name: 'my-repo' })
+ *
+ * if (repoResult.isOk()) {
+ *   console.log('Created:', repoResult.value.repoUrl)
+ * }
  * ```
  */
 
-// Config
-export { ConfigManager, getConfigManager, CONFIG_DIR, CONFIG_FILE } from './config/index.js'
+// Types
+export * from './types/index.js'
 
-// GitHub
-export { GitHubManager, getGitHubManager } from './github/index.js'
+// Services
+export {
+  ConfigService,
+  getConfigService,
+  CONFIG_DIR,
+  CONFIG_FILE,
+} from './services/config.service.js'
 
-// Coolify
-export { CoolifyManager, getCoolifyManager } from './coolify/index.js'
+export {
+  GitHubService,
+  getGitHubService,
+} from './services/github.service.js'
+
+export {
+  CoolifyService,
+  getCoolifyService,
+  type ICoolifyServer,
+  type ICoolifyDestination,
+} from './services/coolify.service.js'
+
+export {
+  BotFatherService,
+  getBotFatherService,
+  type IBotCreateOptions,
+  type IBotCreateResult,
+} from './services/botfather.service.js'
 
 // Pipeline
-export { Pipeline, getPipeline } from './pipeline.js'
+export { Pipeline, getPipeline } from './pipeline/index.js'
 
-// Types
-export type {
-  Config,
-  IGitHubRepoOptions,
-  IGitHubRepoResult,
-  ICoolifyDeployOptions,
-  ICoolifyDeployResult,
-  ICoolifyAppOptions,
-  ICoolifyAppResult,
-  IPipelineOptions,
-  IPipelineResult,
-  Environment,
-} from './types.js'
-
-export { ConfigSchema } from './types.js'
+// Utils
+export { createLogger } from './utils/index.js'
 
 // Version
 export const version = '0.1.0'

@@ -1,5 +1,5 @@
 /**
- * Configuration management for mks-bot-father.
+ * Configuration service for mks-bot-father.
  *
  * @module
  */
@@ -7,11 +7,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { component } from '@mks2508/better-logger'
+import { ok, tryCatch, isOk, type Result, type ResultError } from '@mks2508/no-throw'
 import { type } from 'arktype'
-import { type Config, ConfigSchema } from '../types.js'
+import { createLogger } from '../utils/index.js'
+import { ConfigSchema, type IConfig } from '../types/index.js'
+import { AppErrorCode } from '../types/errors.js'
 
-const log = component('Config')
+const log = createLogger('ConfigService')
 
 /** Configuration directory path */
 export const CONFIG_DIR = join(homedir(), '.config', 'mks-bot-father')
@@ -20,21 +22,23 @@ export const CONFIG_DIR = join(homedir(), '.config', 'mks-bot-father')
 export const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
 
 /**
- * Configuration manager for persistent settings.
+ * Configuration service for persistent settings.
  *
  * @example
  * ```typescript
- * const config = new ConfigManager()
- * config.set('github.token', 'ghp_xxx')
- * const token = config.getGitHubToken()
+ * const config = getConfigService()
+ * const result = config.set('github.token', 'ghp_xxx')
+ * if (isErr(result)) {
+ *   console.error(result.error.message)
+ * }
  * ```
  */
-export class ConfigManager {
-  private config: Config = {}
+export class ConfigService {
+  private config: IConfig = {}
 
   constructor() {
     this.ensureConfigDir()
-    this.load()
+    this.loadSync()
   }
 
   /**
@@ -48,11 +52,9 @@ export class ConfigManager {
   }
 
   /**
-   * Loads configuration from disk.
-   *
-   * @returns The loaded configuration
+   * Loads configuration from disk synchronously (used in constructor).
    */
-  load(): Config {
+  private loadSync(): void {
     try {
       if (existsSync(CONFIG_FILE)) {
         const raw = readFileSync(CONFIG_FILE, 'utf-8')
@@ -74,20 +76,49 @@ export class ConfigManager {
       log.warn('Failed to load config, using defaults')
       this.config = {}
     }
-    return this.config
+  }
+
+  /**
+   * Loads configuration from disk.
+   *
+   * @returns Result with the loaded configuration or error
+   */
+  load(): Result<IConfig, ResultError<typeof AppErrorCode.CONFIG_ERROR>> {
+    const result = tryCatch(() => {
+      if (existsSync(CONFIG_FILE)) {
+        const raw = readFileSync(CONFIG_FILE, 'utf-8')
+        const parsed = JSON.parse(raw)
+        const schemaResult = ConfigSchema(parsed)
+
+        if (schemaResult instanceof type.errors) {
+          log.warn('Invalid config file, using defaults')
+          this.config = {}
+        } else {
+          this.config = schemaResult
+          log.debug('Config loaded successfully')
+        }
+      } else {
+        log.debug('No config file found, using defaults')
+        this.config = {}
+      }
+      return this.config
+    }, AppErrorCode.CONFIG_ERROR)
+
+    return result
   }
 
   /**
    * Saves configuration to disk.
+   *
+   * @returns Result indicating success or error
    */
-  save(): void {
-    try {
+  save(): Result<void, ResultError<typeof AppErrorCode.CONFIG_ERROR>> {
+    const result = tryCatch(() => {
       writeFileSync(CONFIG_FILE, JSON.stringify(this.config, null, 2))
       log.success('Config saved')
-    } catch (error) {
-      log.error('Failed to save config:', error)
-      throw error
-    }
+    }, AppErrorCode.CONFIG_ERROR)
+
+    return result
   }
 
   /**
@@ -95,7 +126,7 @@ export class ConfigManager {
    *
    * @returns The configuration object
    */
-  get(): Config {
+  get(): IConfig {
     return this.config
   }
 
@@ -104,13 +135,17 @@ export class ConfigManager {
    *
    * @param key - The configuration key (e.g., 'github.token')
    * @param value - The value to set
+   * @returns Result indicating success or error
    *
    * @example
    * ```typescript
-   * config.set('coolify.url', 'https://coolify.example.com')
+   * const result = config.set('coolify.url', 'https://coolify.example.com')
+   * if (isOk(result)) {
+   *   console.log('Config saved')
+   * }
    * ```
    */
-  set(key: string, value: unknown): void {
+  set(key: string, value: unknown): Result<void, ResultError<typeof AppErrorCode.CONFIG_ERROR>> {
     const keys = key.split('.')
     let current: Record<string, unknown> = this.config as Record<string, unknown>
 
@@ -124,7 +159,8 @@ export class ConfigManager {
 
     const lastKey = keys[keys.length - 1]!
     current[lastKey] = value
-    this.save()
+
+    return this.save()
   }
 
   /**
@@ -139,9 +175,9 @@ export class ConfigManager {
   /**
    * Gets GitHub token from the gh CLI.
    *
-   * @returns The token from gh CLI or undefined
+   * @returns Result with the token or error
    */
-  async getGitHubTokenFromCli(): Promise<string | undefined> {
+  async getGitHubTokenFromCli(): Promise<Result<string | undefined, ResultError<typeof AppErrorCode.CONFIG_ERROR>>> {
     try {
       const proc = Bun.spawn(['gh', 'auth', 'token'], {
         stdout: 'pipe',
@@ -150,39 +186,39 @@ export class ConfigManager {
       const output = await new Response(proc.stdout).text()
       const exitCode = await proc.exited
       if (exitCode === 0 && output.trim()) {
-        return output.trim()
+        return ok(output.trim())
       }
+      return ok(undefined)
     } catch {
-      log.debug('gh CLI not available or not authenticated')
+      return ok(undefined)
     }
-    return undefined
   }
 
   /**
    * Resolves GitHub token from config, CLI, or environment.
    *
-   * @returns The resolved token or undefined
+   * @returns Result with the resolved token or undefined
    */
-  async resolveGitHubToken(): Promise<string | undefined> {
+  async resolveGitHubToken(): Promise<Result<string | undefined, ResultError<typeof AppErrorCode.CONFIG_ERROR>>> {
     if (this.config.github?.token) {
-      return this.config.github.token
+      return ok(this.config.github.token)
     }
 
     if (this.config.github?.useGhCli !== false) {
-      const cliToken = await this.getGitHubTokenFromCli()
-      if (cliToken) {
+      const cliResult = await this.getGitHubTokenFromCli()
+      if (isOk(cliResult) && cliResult.value) {
         log.debug('Using GitHub token from gh CLI')
-        return cliToken
+        return ok(cliResult.value)
       }
     }
 
     const envToken = process.env['GITHUB_TOKEN']
     if (envToken) {
       log.debug('Using GitHub token from environment')
-      return envToken
+      return ok(envToken)
     }
 
-    return undefined
+    return ok(undefined)
   }
 
   /**
@@ -225,16 +261,16 @@ export class ConfigManager {
   }
 }
 
-let instance: ConfigManager | null = null
+let instance: ConfigService | null = null
 
 /**
- * Gets the singleton ConfigManager instance.
+ * Gets the singleton ConfigService instance.
  *
- * @returns The ConfigManager instance
+ * @returns The ConfigService instance
  */
-export function getConfigManager(): ConfigManager {
+export function getConfigService(): ConfigService {
   if (!instance) {
-    instance = new ConfigManager()
+    instance = new ConfigService()
   }
   return instance
 }
