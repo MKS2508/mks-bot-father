@@ -1,0 +1,29 @@
+{
+  "name": "@mks2508/bot-manager-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "start:telegram": "bun src/telegram/bot.ts",
+    "build": "bun build ./src/index.ts --outfile ./dist/agent.js --target node",
+    "test:tools": "bun src/tools/index.ts --test",
+    "test:agent": "bun test"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.1",
+    "@mks2508/mks-bot-father": "workspace:*",
+    "@mks2508/better-logger": "^4.0.0",
+    "@mks2508/no-throw": "^0.1.0",
+    "zod": "^3.24.1",
+    "telegraf": "^4.16.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.0.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.9.0"
+  }
+}

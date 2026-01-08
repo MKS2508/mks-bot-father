@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "core/packages/*"
+    "core/packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "bun run --filter '*' dev",
