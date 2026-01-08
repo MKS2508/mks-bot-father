@@ -65,6 +65,10 @@ async function cleanupOrphanSessions(): Promise<void> {
 async function createSession(): Promise<void> {
   console.log(`${c.cyan}Creating tmux session '${SESSION_NAME}'...${c.reset}`)
 
+  // Configure tmux globally for OSC 8 hyperlinks support (must be before creating session)
+  await $`tmux set-option -g allow-passthrough on`.quiet()
+  await $`tmux set-option -ga terminal-features "*:hyperlinks"`.quiet()
+
   // Create new detached session with first command (TUI with watch)
   await $`tmux new-session -d -s ${SESSION_NAME} -c ${PROJECT_DIR} "bun run --watch src/index.ts; read"`.quiet()
 
@@ -78,15 +82,15 @@ async function createSession(): Promise<void> {
   // Set scrollback buffer size
   await $`tmux set -t ${SESSION_NAME} history-limit 10000`.quiet()
 
-  // Enable OSC 8 hyperlink passthrough on log viewer pane (pane 1)
-  await $`tmux set-option -t ${SESSION_NAME}:.1 -p allow-passthrough on`.quiet()
+  // Enable OSC 8 hyperlink passthrough on log viewer pane (pane 1) - redundant but explicit
+  await $`tmux set-option -t ${SESSION_NAME}:.1 allow-passthrough on`.quiet()
 
   // Select pane 0 (TUI) as active
   await $`tmux select-pane -t ${SESSION_NAME}:.0`.quiet()
 
   console.log(`${c.green}✓ Session created with dual panes${c.reset}`)
   console.log(`${c.dim}  Pane 0 (top):    TUI${c.reset}`)
-  console.log(`${c.dim}  Pane 1 (bottom): Log Viewer${c.reset}`)
+  console.log(`${c.dim}  Pane 1 (bottom): Log Viewer (clickable links!)${c.reset}`)
   console.log(`${c.dim}  Mouse: enabled (scroll + select)${c.reset}`)
 }
 
