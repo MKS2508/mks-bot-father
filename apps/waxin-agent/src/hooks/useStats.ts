@@ -156,3 +156,51 @@ export function formatDuration(ms: number): string {
   }
   return `${ms}ms`
 }
+
+/**
+ * Get MCP tools count from agent.
+ */
+export function getMcpToolsCount(): number {
+  // Import allAllowedTools from agent
+  try {
+    // @ts-ignore - Dynamic import from agent package
+    const { allAllowedTools } = require('../../agent/dist/tools/index.js')
+    return allAllowedTools.filter((t: string) => t.startsWith('mcp__')).length
+  } catch {
+    // Fallback if not available
+    return 0
+  }
+}
+
+/**
+ * Topbar stats formatted for display.
+ */
+export interface TopbarStats {
+  mcpTools: string
+  tokens: string
+  cost: string
+  session: string
+  duration: string
+}
+
+/**
+ * Get formatted stats for topbar display.
+ */
+export function getTopbarStats(): TopbarStats {
+  const stats = getStats()
+  const aggregated = getAggregatedStats()
+
+  const mcpCount = getMcpToolsCount()
+  const tokens = aggregated?.totalTokens ?? stats?.totalTokens ?? 0
+  const cost = aggregated?.totalCost ?? stats?.totalCostUsd ?? 0
+  const duration = aggregated?.totalDuration ?? stats?.durationMs ?? 0
+  const sessionId = stats?.sessionId ?? 'unknown'
+
+  return {
+    mcpTools: `${mcpCount} MCP`,
+    tokens: `${formatTokens(tokens)} tk`,
+    cost: formatCost(cost),
+    session: `ses:${sessionId.slice(-8)}`,
+    duration: formatDuration(duration)
+  }
+}

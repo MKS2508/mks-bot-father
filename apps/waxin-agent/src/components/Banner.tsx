@@ -45,16 +45,16 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
   const termWidth = renderer?.terminalWidth ?? 80
   const [loadError, setLoadError] = useState<Error | null>(null)
   const [backendReady, setBackendReady] = useState(false)
-  const [devilAscii, setDevilAscii] = useState<string>('')
+  const [devilAsciiLines, setDevilAsciiLines] = useState<string[]>([])
 
-  // Load devil ASCII art as single string
+  // Load devil ASCII art as array of lines
   useEffect(() => {
     try {
       const asciiPath = resolve(process.cwd(), 'assets/devil2.ascii.txt')
       const asciiContent = readFileSync(asciiPath, 'utf-8')
-      setDevilAscii(asciiContent.trim())
+      setDevilAsciiLines(asciiContent.trim().split('\n'))
     } catch (err) {
-      console.error('Failed to load devil ASCII:', err)
+      // Silently fail, devil ASCII is optional
     }
   }, [])
 
@@ -136,7 +136,7 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
         )
       )}
 
-      {/* Right: Devil ASCII only */}
+      {/* Right: Devil ASCII - line by line for proper scaling */}
       <box
         style={{
           flexDirection: 'column',
@@ -145,12 +145,11 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
           marginLeft: 2,
         }}
       >
-        {/* Devil ASCII as single text block */}
-        {devilAscii && (
-          <text style={{ fg: THEME.magenta }}>
-            {devilAscii}
+        {devilAsciiLines.map((line, i) => (
+          <text key={i} style={{ fg: THEME.magenta }}>
+            {line}
           </text>
-        )}
+        ))}
       </box>
     </box>
   )
