@@ -91,3 +91,60 @@ export interface LogFileConfig {
   maxFiles: number
   pattern: string
 }
+
+/**
+ * Banner display mode.
+ */
+export type BannerMode = 'ascii' | 'image'
+
+/**
+ * Banner configuration.
+ */
+export interface BannerConfig {
+  mode: BannerMode
+  imageSrc?: string
+  title: string
+  subtitle?: string
+  animated?: boolean
+  imageWidth?: number
+  imageHeight?: number
+}
+
+/**
+ * Default banner configuration.
+ */
+export const DEFAULT_BANNER_CONFIG: BannerConfig = {
+  mode: 'image',
+  imageSrc: './assets/mr-robot-1.gif',
+  title: 'WAXIN Agent',
+  subtitle: 'Bot Manager TUI',
+  animated: true,
+  imageWidth: 40,
+  imageHeight: 8
+}
+
+/**
+ * Option for user question.
+ */
+export interface QuestionOption {
+  label: string
+  description: string
+}
+
+/**
+ * User question from agent.
+ */
+export interface UserQuestion {
+  question: string
+  header: string
+  options: QuestionOption[]
+  multiSelect: boolean
+}
+
+/**
+ * Response to user question.
+ */
+export interface QuestionResponse {
+  questionIndex: number
+  selectedOptions: string[]
+}

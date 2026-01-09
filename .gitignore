@@ -29,3 +29,7 @@ npm-debug.log*
 
 # opensrc - source code for packages
 opensrc/
+
+# Test environment files
+.env.test
+*.env.test

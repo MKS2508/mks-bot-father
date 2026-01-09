@@ -61,3 +61,13 @@ export {
   formatOperationDuration,
   cleanupOperations
 } from './useOperations.js'
+
+export {
+  showQuestion,
+  getActiveQuestion,
+  hasActiveQuestion,
+  answerQuestion,
+  cancelQuestion,
+  subscribeToQuestions,
+  resetQuestions
+} from './useQuestions.js'

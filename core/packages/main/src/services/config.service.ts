@@ -230,28 +230,52 @@ export class ConfigService {
 
   /**
    * Gets the configured Coolify URL.
+   * Checks config file first, then falls back to environment variable.
    *
    * @returns The Coolify URL or undefined
    */
   getCoolifyUrl(): string | undefined {
-    return this.config.coolify?.url
+    return this.config.coolify?.url || process.env['COOLIFY_URL']
   }
 
   /**
    * Gets the configured Coolify token.
+   * Checks config file first, then falls back to environment variable.
    *
    * @returns The Coolify token or undefined
    */
   getCoolifyToken(): string | undefined {
-    return this.config.coolify?.token
+    return this.config.coolify?.token || process.env['COOLIFY_TOKEN']
   }
 
   /**
    * Gets the configured Telegram API credentials.
+   * Checks config file first, then falls back to environment variables.
    *
    * @returns Object with apiId and apiHash
    */
   getTelegramCredentials(): { apiId?: number; apiHash?: string } {
+    // Config file takes priority
+    if (this.config.telegram?.apiId && this.config.telegram?.apiHash) {
+      return {
+        apiId: this.config.telegram.apiId,
+        apiHash: this.config.telegram.apiHash,
+      }
+    }
+
+    // Fallback to environment variables
+    const envApiId = process.env['TELEGRAM_API_ID']
+    const envApiHash = process.env['TELEGRAM_API_HASH']
+
+    if (envApiId && envApiHash) {
+      log.debug('Using Telegram credentials from environment')
+      return {
+        apiId: parseInt(envApiId, 10),
+        apiHash: envApiHash,
+      }
+    }
+
+    // Return whatever is configured (might be partial)
     return {
       apiId: this.config.telegram?.apiId,
       apiHash: this.config.telegram?.apiHash,

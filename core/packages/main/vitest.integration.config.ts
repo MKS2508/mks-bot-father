@@ -8,11 +8,5 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**'],
     testTimeout: 60000,
     hookTimeout: 30000,
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
   },
 })

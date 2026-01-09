@@ -47,7 +47,7 @@ async function sessionExists(name: string): Promise<boolean> {
 async function createTUISession(): Promise<void> {
   console.log(`${c.cyan}Creating tmux session '${SESSION_TUI}' (TUI)...${c.reset}`)
 
-  await $`tmux new-session -d -s ${SESSION_TUI} -c ${PROJECT_DIR} "bun run --watch src/index.ts"`.quiet()
+  await $`tmux new-session -d -s ${SESSION_TUI} -c ${PROJECT_DIR} "bun --watch src/index.ts"`.quiet()
   await $`tmux set -t ${SESSION_TUI} mouse on`.quiet()
   await $`tmux set -t ${SESSION_TUI} history-limit 10000`.quiet()
 

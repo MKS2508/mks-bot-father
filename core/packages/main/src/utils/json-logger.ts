@@ -29,29 +29,6 @@ export interface JsonLogEntry {
   metrics?: LogMetrics
 }
 
-function getCallerLocation(): string | undefined {
-  const err = new Error()
-  const stack = err.stack?.split('\n')
-  if (!stack) return undefined
-
-  for (let i = 2; i < stack.length; i++) {
-    const line = stack[i]
-    if (!line.includes('json-logger') && !line.includes('node:internal')) {
-      const match = line.match(/at\s+(?:.*?\s+\()?([^()]+):(\d+):\d+\)?/)
-      if (match) {
-        let file = match[1]
-        const lineNum = match[2]
-        const parts = file.split('/')
-        if (parts.length > 2) {
-          file = parts.slice(-3).join('/')
-        }
-        return `${file}:${lineNum}`
-      }
-    }
-  }
-  return undefined
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // JSON LOGGER CLASS
 // ═══════════════════════════════════════════════════════════════════════════════
