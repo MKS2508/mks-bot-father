@@ -380,4 +380,353 @@ describe('GitHubService', () => {
       expect(instance1).toBe(instance2)
     })
   })
+
+  describe('createRepoFromTemplate() extended', () => {
+    it('should handle API error when creating from template', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ login: 'testuser' }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: async () => ({ message: 'Template not found' }),
+        })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.createRepoFromTemplate({
+        name: 'from-template',
+        templateOwner: 'nonexistent',
+        templateRepo: 'template',
+      })
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Template not found')
+      }
+    })
+
+    it('should use default template owner and repo', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ login: 'testuser' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            html_url: 'https://github.com/testuser/new-bot',
+            clone_url: 'https://github.com/testuser/new-bot.git',
+            full_name: 'testuser/new-bot',
+          }),
+        })
+
+      const service = new GitHubService()
+      await service.init()
+      await service.createRepoFromTemplate({
+        name: 'new-bot',
+      })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/repos/MKS2508/mks-telegram-bot/generate'),
+        expect.any(Object)
+      )
+    })
+
+    it('should error when user cannot be determined', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'Bad credentials' }),
+      })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.createRepoFromTemplate({
+        name: 'test-repo',
+      })
+
+      expect(isErr(result)).toBe(true)
+    })
+
+    it('should use provided owner when specified', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ login: 'testuser' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            html_url: 'https://github.com/custom-owner/new-repo',
+            clone_url: 'https://github.com/custom-owner/new-repo.git',
+            full_name: 'custom-owner/new-repo',
+          }),
+        })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.createRepoFromTemplate({
+        name: 'new-repo',
+        owner: 'custom-owner',
+      })
+
+      expect(isOk(result)).toBe(true)
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('"owner":"custom-owner"'),
+        })
+      )
+    })
+  })
+
+  describe('createRepo() extended', () => {
+    it('should error when getAuthenticatedUser fails', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: 'Unauthorized' }),
+      })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.createRepo({ name: 'new-repo' })
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Unauthorized')
+      }
+    })
+
+    it('should error when owner cannot be determined and none provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.createRepo({ name: 'new-repo' })
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Could not determine repository owner')
+      }
+    })
+
+    it('should use default description when not provided', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ login: 'testuser' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ type: 'User' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            html_url: 'https://github.com/testuser/new-repo',
+            clone_url: 'https://github.com/testuser/new-repo.git',
+            full_name: 'testuser/new-repo',
+          }),
+        })
+
+      const service = new GitHubService()
+      await service.init()
+      await service.createRepo({ name: 'new-repo' })
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('Telegram bot created with mks-bot-father'),
+        })
+      )
+    })
+
+    it('should default to private repository when not specified', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ login: 'testuser' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ type: 'User' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            html_url: 'https://github.com/testuser/new-repo',
+            clone_url: 'https://github.com/testuser/new-repo.git',
+            full_name: 'testuser/new-repo',
+          }),
+        })
+
+      const service = new GitHubService()
+      await service.init()
+      await service.createRepo({ name: 'new-repo' })
+
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          body: expect.stringContaining('"private":true'),
+        })
+      )
+    })
+  })
+
+  describe('isOrganization() extended', () => {
+    it('should return error when API call fails', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({ message: 'User not found' }),
+      })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.isOrganization('nonexistent-user')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('User not found')
+      }
+    })
+  })
+
+  describe('getAuthenticatedUser() extended', () => {
+    it('should handle network error', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.getAuthenticatedUser()
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Network error')
+      }
+    })
+
+    it('should return undefined login when missing from response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      })
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.getAuthenticatedUser()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+  })
+
+  describe('pushToRepo() extended', () => {
+    it('should use custom branch name', async () => {
+      const mockProcess = {
+        exited: Promise.resolve(0),
+        stdout: new ReadableStream(),
+        stderr: new ReadableStream(),
+      }
+
+      mockBunSpawn.mockReturnValue(mockProcess)
+
+      const service = new GitHubService()
+      await service.init()
+      await service.pushToRepo(
+        'https://github.com/test/repo.git',
+        '/path/to/project',
+        'develop'
+      )
+
+      expect(mockBunSpawn).toHaveBeenCalledWith(
+        ['git', 'branch', '-M', 'develop'],
+        expect.any(Object)
+      )
+      expect(mockBunSpawn).toHaveBeenCalledWith(
+        ['git', 'push', '-u', 'origin', 'develop'],
+        expect.any(Object)
+      )
+    })
+
+    it('should handle git init failure', async () => {
+      const createMockProcess = (exitCode: number, stderrText = '') => ({
+        exited: Promise.resolve(exitCode),
+        stdout: new ReadableStream(),
+        stderr: new ReadableStream({
+          start(controller) {
+            if (stderrText) {
+              controller.enqueue(new TextEncoder().encode(stderrText))
+            }
+            controller.close()
+          },
+        }),
+      })
+
+      mockBunSpawn
+        .mockReturnValueOnce(createMockProcess(0))
+        .mockReturnValueOnce(createMockProcess(0))
+        .mockReturnValueOnce(createMockProcess(0))
+        .mockReturnValueOnce(createMockProcess(0))
+        .mockReturnValueOnce(createMockProcess(0))
+        .mockReturnValueOnce(createMockProcess(128, 'fatal: remote origin already exists'))
+
+      const service = new GitHubService()
+      await service.init()
+      const result = await service.pushToRepo(
+        'https://github.com/test/repo.git',
+        '/path/to/project'
+      )
+
+      expect(isErr(result)).toBe(true)
+    })
+  })
+
+  describe('request() private method behavior', () => {
+    it('should return error when token is not set', async () => {
+      mockToken = undefined
+
+      vi.resetModules()
+      const freshModule = await import('../github.service.js')
+      const service = new freshModule.GitHubService()
+
+      const result = await service.getAuthenticatedUser()
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('No GitHub token')
+      }
+    })
+
+    it('should include correct headers in API requests', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ login: 'testuser' }),
+      })
+
+      const service = new GitHubService()
+      await service.init()
+      await service.getAuthenticatedUser()
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/user'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: 'application/vnd.github+json',
+            Authorization: 'Bearer ghp_test_token',
+            'X-GitHub-Api-Version': '2022-11-28',
+          }),
+        })
+      )
+    })
+  })
 })
