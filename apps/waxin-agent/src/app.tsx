@@ -9,10 +9,12 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAgent } from './hooks/useAgent.js'
 import { log } from './lib/json-logger.js'
 import { getStats, updateStats, formatTokens, formatCost } from './hooks/useStats.js'
-import { Banner, initImageBackends, QuestionModal } from './components/index.js'
+import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header } from './components/index.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
 import type { AgentStats, BannerConfig, UserQuestion } from './types.js'
-import { DEFAULT_BANNER_CONFIG } from './types.js'
+import { DEFAULT_BANNER_CONFIG, FLOATING_IMAGE_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
+import { resolve } from 'path'
+import { readFileSync } from 'fs'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYNTHWAVE84 THEME
@@ -55,13 +57,6 @@ interface Message {
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function formatTimestamp(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, '0')
-  const minutes = date.getMinutes().toString().padStart(2, '0')
-  const seconds = date.getSeconds().toString().padStart(2, '0')
-  return `${hours}:${minutes}:${seconds}`
-}
-
 const AGENTS: { type: AgentType; label: string; color: string }[] = [
   { type: 'build', label: 'Build', color: THEME.blue },
   { type: 'plan', label: 'Plan', color: THEME.purple },
@@ -95,6 +90,7 @@ export const App = () => {
   const renderer = useRenderer()
   const agent = useAgent()
 
+  const [splashVisible, setSplashVisible] = useState(DEFAULT_SPLASH_CONFIG.enabled)
   const [isExecuting, setIsExecuting] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
@@ -102,7 +98,19 @@ export const App = () => {
   const [currentAgent, setCurrentAgent] = useState<AgentType>('build')
   const [bannerConfig] = useState<BannerConfig>(DEFAULT_BANNER_CONFIG)
   const [activeQuestion, setActiveQuestion] = useState<UserQuestion | null>(null)
+  const [waxinText, setWaxinText] = useState<string>('')
   const textareaRef = useRef<TextareaRenderable | null>(null)
+
+  // Load WAXIN text
+  useEffect(() => {
+    try {
+      const waxinPath = resolve(process.cwd(), 'assets/waxin.ascii.txt')
+      const waxinContent = readFileSync(waxinPath, 'utf-8')
+      setWaxinText(waxinContent.trim())
+    } catch {
+      setWaxinText('WAXIN MK1 😈')
+    }
+  }, [])
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Keyboard shortcuts
@@ -110,6 +118,12 @@ export const App = () => {
 
   useKeyboard((key) => {
     if (activeQuestion) return
+
+    if (splashVisible && key.name === 'escape') {
+      log.info('TUI', 'Splash screen skipped by user')
+      setSplashVisible(false)
+      return
+    }
 
     if (key.ctrl && key.name === 'k') {
       setMessages([])
@@ -231,6 +245,14 @@ export const App = () => {
           text,
           {},
           {
+            onThinking: (thinkingText: string) => {
+              log.debug('AGENT', 'Thinking text received', {
+                length: thinkingText.length,
+                preview: thinkingText.slice(0, 80)
+              })
+              // Optional: Display thinking text in a special way
+              // For now, just log it - the ThinkingIndicator shows visual feedback
+            },
             onAssistantMessage: (msg: string) => {
               log.debug('AGENT', 'Assistant message received', {
                 length: msg.length,
@@ -520,38 +542,8 @@ export const App = () => {
       }}
       focused={!isExecuting}
     >
-      {messages.map((msg, i) => (
-        <box
-          key={i}
-          style={{
-            width: '100%',
-            marginBottom: 1,
-            paddingLeft: 1,
-            flexDirection: 'column',
-          }}
-        >
-          {msg.role === 'tool' ? (
-            <box style={{ flexDirection: 'row' }}>
-              <text style={{ fg: THEME.magenta }}>⚡ {msg.content}</text>
-              <text style={{ fg: THEME.textMuted }}> · {formatTimestamp(msg.timestamp)}</text>
-            </box>
-          ) : (
-            <>
-              <box style={{ flexDirection: 'row', marginBottom: 0 }}>
-                <text style={{ fg: msg.role === 'user' ? THEME.cyan : THEME.green }}>
-                  {msg.role === 'user' ? '▶ ' : ''}
-                </text>
-                <text style={{ fg: THEME.textMuted }}>
-                  {formatTimestamp(msg.timestamp)}
-                </text>
-              </box>
-              <text
-                style={{ fg: msg.role === 'user' ? THEME.cyan : THEME.green }}
-                content={msg.content}
-              />
-            </>
-          )}
-        </box>
+      {messages.map((msg) => (
+        <ChatBubble message={msg} />
       ))}
     </scrollbox>
   )
@@ -559,6 +551,18 @@ export const App = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // Main Render
   // ─────────────────────────────────────────────────────────────────────────────
+
+  if (splashVisible) {
+    return (
+      <SplashScreen
+        config={DEFAULT_SPLASH_CONFIG}
+        onComplete={() => {
+          log.info('TUI', 'Splash screen completed')
+          setSplashVisible(false)
+        }}
+      />
+    )
+  }
 
   return (
     <box
@@ -572,32 +576,25 @@ export const App = () => {
     >
       {hasMessages ? (
         <>
-          {/* Chat Layout: Compact banner + Messages + Prompt + Status */}
-          <Banner
-            config={bannerConfig}
-            onImageError={(err) => log.warn('TUI', 'Banner image failed to load', { error: err.message })}
-          />
+          {/* Chat Layout with Messages: Topbar + Expanded Scrollbox + Prompt + FloatingImage */}
+          <Topbar text="WAXIN MK1" font="banner" />
 
-          {/* Messages Area - no border, just content */}
+          {/* Messages Area - EXPANDED */}
           <box
             style={{
               flexGrow: 1,
               marginTop: 1,
-              marginBottom: 1,
               paddingLeft: 1,
               paddingRight: 1,
+              minHeight: '60%',
             }}
           >
             <MessageList />
           </box>
 
-          {/* Loading Indicator */}
+          {/* Thinking Indicator - animated spinner with personality words */}
           {isExecuting && (
-            <box style={{ paddingLeft: 2, marginBottom: 1 }}>
-              <text style={{ fg: isStreaming ? THEME.cyan : THEME.yellow }}>
-                {isStreaming ? '◓ Streaming...' : '◐ Agent working...'}
-              </text>
-            </box>
+            <ThinkingIndicator isStreaming={isStreaming} />
           )}
 
           {/* Prompt */}
@@ -605,9 +602,18 @@ export const App = () => {
 
           {/* Status Bar */}
           <StatusBar />
+
+          {/* Floating Image - bottom-right */}
+          <FloatingImage
+            config={FLOATING_IMAGE_CONFIG}
+            onImageError={(err) => log.warn('TUI', 'Floating image failed to load', { error: err.message })}
+          />
         </>
       ) : (
         <>
+          {/* Header con WAXIN animado - arriba del todo */}
+          {waxinText && <Header waxinText={waxinText} />}
+
           {/* Empty Layout: Centered Banner + Centered Prompt */}
           <box
             style={{
@@ -659,8 +665,13 @@ export async function startTUI(): Promise<void> {
     platform: process.platform
   })
 
+  // Initialize Banner image backends
   const backend = await initImageBackends()
   log.info('TUI', 'Image backends initialized', { backend: backend ?? 'none' })
+
+  // Initialize FloatingImage backends (same backend)
+  await initFloatingImageBackends()
+  log.info('TUI', 'Floating image backends initialized')
 
   const renderer = await createCliRenderer()
   renderer.setBackgroundColor(THEME.bg)

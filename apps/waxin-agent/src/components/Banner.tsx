@@ -50,7 +50,7 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
   // Load devil ASCII art as single string
   useEffect(() => {
     try {
-      const asciiPath = resolve(process.cwd(), 'assets/devil1.ascii.txt')
+      const asciiPath = resolve(process.cwd(), 'assets/devil2.ascii.txt')
       const asciiContent = readFileSync(asciiPath, 'utf-8')
       setDevilAscii(asciiContent.trim())
     } catch (err) {

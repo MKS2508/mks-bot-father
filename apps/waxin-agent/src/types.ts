@@ -123,6 +123,17 @@ export const DEFAULT_BANNER_CONFIG: BannerConfig = {
   imageHeight: 29
 }
 
+// Config for FloatingImage (reduced size, bottom-right)
+export const FLOATING_IMAGE_CONFIG: BannerConfig = {
+  mode: 'image',
+  imageSrc: './assets/luciadibu.png',
+  title: '',
+  subtitle: '',
+  animated: false,
+  imageWidth: 25,
+  imageHeight: 10
+}
+
 /**
  * Option for user question.
  */
@@ -148,3 +159,130 @@ export interface QuestionResponse {
   questionIndex: number
   selectedOptions: string[]
 }
+
+/**
+ * Splash screen configuration.
+ */
+export interface SplashConfig {
+  enabled: boolean
+  durationMs: number
+  getGifs: () => string[]
+  imageWidth?: number
+  imageHeight?: number
+}
+
+/**
+ * Get all animated image files from assets folder dynamically using fs.
+ * Supports .gif and .webp (animated).
+ */
+function getAssetGifs(): string[] {
+  const fs = require('fs')
+  const path = require('path')
+  const assetsDir = path.join(__dirname, '../assets')
+
+  try {
+    const files = fs.readdirSync(assetsDir)
+    return files
+      .filter((f: string) => (f.endsWith('.gif') || f.endsWith('.webp')) && !f.includes('nugshotz'))
+      .map((f: string) => `./assets/${f}`)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Default splash screen configuration.
+ */
+export const DEFAULT_SPLASH_CONFIG: SplashConfig = {
+  enabled: true,
+  durationMs: 5000,
+  getGifs: getAssetGifs,
+  imageWidth: 85, // Porcentaje del ancho del terminal
+  imageHeight: 70, // Porcentaje del alto del terminal
+}
+
+/**
+ * Spinner words array for WAXIN MK1 personality.
+ * Categories: Arabic insults, porros, hash, yerbas, macarra, Helsinki, programming, random.
+ */
+export const SPINNER_WORDS: readonly string[] = [
+  // Insultos en árabe/letras raras
+  'laín 3al t4b0n m0k',
+  't4pbn 13m4kk',
+  'wallah',
+  'yallah',
+  'habibi',
+  'mabrook',
+  'inshallah',
+  'mashallah',
+
+  // Porros/fumar
+  'fumando dry',
+  'roll it up',
+  'spark it',
+  'fumando bareta',
+  'porro finito',
+  'fumando porro',
+  'chupalla',
+  'preciado',
+  'cogollo',
+  'mota',
+
+  // Hash/dry sift
+  'dry sift',
+  'static',
+  'kief',
+  'bubble hash',
+  'rosin',
+  'ice wax',
+  'charas',
+  'finger hash',
+
+  // Variedades de yerba
+  'og kush',
+  'girl scout cookies',
+  'wedding cake',
+  'gelato',
+  'zkittlez',
+  'purple haze',
+  'northern lights',
+  'sour diesel',
+  'blue dream',
+  'white widow',
+  'amnesia',
+  'critical',
+
+  // Verbos/macarra
+  'sile',
+  'sape',
+  'klk',
+  'ke vida bro',
+  'redi',
+  'reeeedi',
+  'super redii',
+
+  // Helsinki/datacenter
+  'full dark',
+  'blackout',
+  'dead',
+  'datacenter burning',
+  'server melting',
+
+  // Programación ego
+  'compilando',
+  'deploying',
+  'mergeando',
+  'pulleando',
+  'commiteando',
+  'pusheando',
+  'debuggeando',
+  'refactorizando',
+  'optimizeando',
+
+  // Random personality
+  'cosas así',
+  'ni puta idea socio',
+  'sus muermos',
+  'gran topo',
+  'deymos',
+] as const

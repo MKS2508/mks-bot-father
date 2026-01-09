@@ -122,6 +122,7 @@ export class AgentBridge {
       message?: { content?: ContentBlock[] }
       result?: string
       errors?: string[]
+      thinking?: string
     }
 
     log.debug('AGENT', 'handleMessage() processing', {
@@ -142,6 +143,15 @@ export class AgentBridge {
       this.sessionId = msg.session_id
       log.info('AGENT', 'Session initialized', { sessionId: msg.session_id })
       agentLogger.info(`Session started: ${msg.session_id}`)
+    }
+
+    // Handle thinking/reasoning text
+    if (msg.thinking) {
+      log.debug('AGENT', 'Thinking text received', {
+        length: msg.thinking.length,
+        preview: msg.thinking.slice(0, 100)
+      })
+      callbacks.onThinking?.(msg.thinking)
     }
 
     // Get content from either direct property or nested message object

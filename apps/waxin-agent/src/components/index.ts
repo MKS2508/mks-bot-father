@@ -1,2 +1,8 @@
 export { Banner, initImageBackends } from './Banner.js'
+export { Topbar } from './Topbar.js'
+export { FloatingImage, initFloatingImageBackends } from './FloatingImage.js'
 export { QuestionModal } from './QuestionModal.js'
+export { ChatBubble } from './ChatBubble.js'
+export { ThinkingIndicator } from './ThinkingIndicator.js'
+export { SplashScreen } from './SplashScreen.js'
+export { Header } from './Header.js'
