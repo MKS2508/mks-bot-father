@@ -6,6 +6,7 @@
 
 import { statsLogger } from '../lib/logger.js'
 import { log } from '../lib/json-logger.js'
+import { allAllowedTools, mcpServers } from '@mks2508/bot-manager-agent'
 import type { AgentStats } from '../types.js'
 
 /**
@@ -158,29 +159,38 @@ export function formatDuration(ms: number): string {
 }
 
 /**
- * Get MCP tools count from agent.
+ * Get MCP tools count (configured tools from @mks2508/bot-manager-agent).
  */
 export function getMcpToolsCount(): number {
-  // Import allAllowedTools from agent
-  try {
-    // @ts-ignore - Dynamic import from agent package
-    const { allAllowedTools } = require('../../agent/dist/tools/index.js')
-    return allAllowedTools.filter((t: string) => t.startsWith('mcp__')).length
-  } catch {
-    // Fallback if not available
-    return 0
-  }
+  return allAllowedTools.filter(t => t.startsWith('mcp__')).length
+}
+
+/**
+ * Get MCP servers count.
+ */
+export function getMcpServersCount(): number {
+  return Object.keys(mcpServers).length
+}
+
+/**
+ * Get total allowed tools count (including built-in).
+ */
+export function getTotalToolsCount(): number {
+  return allAllowedTools.length
 }
 
 /**
  * Topbar stats formatted for display.
  */
 export interface TopbarStats {
-  mcpTools: string
+  mcpTools: number
+  mcpServers: number
+  totalTools: number
   tokens: string
   cost: string
   session: string
   duration: string
+  toolCalls: number
 }
 
 /**
@@ -190,17 +200,20 @@ export function getTopbarStats(): TopbarStats {
   const stats = getStats()
   const aggregated = getAggregatedStats()
 
-  const mcpCount = getMcpToolsCount()
   const tokens = aggregated?.totalTokens ?? stats?.totalTokens ?? 0
   const cost = aggregated?.totalCost ?? stats?.totalCostUsd ?? 0
   const duration = aggregated?.totalDuration ?? stats?.durationMs ?? 0
   const sessionId = stats?.sessionId ?? 'unknown'
+  const toolCalls = stats?.toolCallsCount ?? 0
 
   return {
-    mcpTools: `${mcpCount} MCP`,
-    tokens: `${formatTokens(tokens)} tk`,
+    mcpTools: getMcpToolsCount(),
+    mcpServers: getMcpServersCount(),
+    totalTools: getTotalToolsCount(),
+    tokens: formatTokens(tokens),
     cost: formatCost(cost),
-    session: `ses:${sessionId.slice(-8)}`,
-    duration: formatDuration(duration)
+    session: sessionId.slice(-8),
+    duration: formatDuration(duration),
+    toolCalls
   }
 }

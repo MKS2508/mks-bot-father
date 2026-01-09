@@ -9,7 +9,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAgent } from './hooks/useAgent.js'
 import { log } from './lib/json-logger.js'
 import { getStats, updateStats, formatTokens, formatCost } from './hooks/useStats.js'
-import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header } from './components/index.js'
+import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header, StatsBarMinimal } from './components/index.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
 import type { AgentStats, BannerConfig, UserQuestion } from './types.js'
 import { DEFAULT_BANNER_CONFIG, FLOATING_IMAGE_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
@@ -576,8 +576,8 @@ export const App = () => {
     >
       {hasMessages ? (
         <>
-          {/* Chat Layout with Messages: Topbar + Expanded Scrollbox + Prompt + FloatingImage */}
-          <Topbar text="WAXIN MK1" font="banner" />
+          {/* Chat Layout with Messages: Topbar with integrated stats + Expanded Scrollbox + Prompt + FloatingImage */}
+          <Topbar text="WAXIN MK1" font="banner" isStreaming={isStreaming} isExecuting={isExecuting} />
 
           {/* Messages Area - EXPANDED */}
           <box
@@ -613,6 +613,9 @@ export const App = () => {
         <>
           {/* Header con WAXIN animado - arriba del todo */}
           {waxinText && <Header waxinText={waxinText} />}
+
+          {/* Stats Bar - siempre visible debajo del header */}
+          <StatsBarMinimal isStreaming={isStreaming} isExecuting={isExecuting} />
 
           {/* Empty Layout: Centered Banner + Centered Prompt */}
           <box
