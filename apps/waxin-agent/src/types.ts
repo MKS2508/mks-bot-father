@@ -119,8 +119,8 @@ export const DEFAULT_BANNER_CONFIG: BannerConfig = {
   title: '',
   subtitle: 'Agente de código y gestión de bots muy basado 😈',
   animated: false,
-  imageWidth: 70,
-  imageHeight: 29
+  imageWidth: 0.35,
+  imageHeight: 0.5
 }
 
 // Config for FloatingImage (reduced size, bottom-right)

@@ -85,18 +85,27 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
     ? resolve(process.cwd(), config.imageSrc)
     : undefined
 
-  const imageWidth = Math.min(config.imageWidth ?? 40, termWidth - 4)
-  const imageHeight = config.imageHeight ?? 8
+  // Scale image proportionally to terminal size
+  // Values < 1 are treated as percentages, >= 1 as absolute values
+  const configWidth = config.imageWidth ?? 0.35
+  const configHeight = config.imageHeight ?? 0.5
+  const imageWidth = configWidth < 1
+    ? Math.floor(termWidth * configWidth)
+    : Math.min(configWidth, termWidth - 4)
+  const termHeight = renderer?.terminalHeight ?? 40
+  const imageHeight = configHeight < 1
+    ? Math.floor(termHeight * configHeight)
+    : configHeight
 
   return (
     <box
       style={{
         flexDirection: 'row',
         width: '100%',
-        alignItems: 'flex-start',
+        alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 0,
-        paddingLeft: 1,
-        paddingRight: 1,
+        gap: 4,
       }}
     >
       {/* Left: Image */}
@@ -136,13 +145,11 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
         )
       )}
 
-      {/* Right: Devil ASCII - line by line for proper scaling */}
+      {/* Right: Devil ASCII - line by line, preserve leading spaces */}
       <box
         style={{
           flexDirection: 'column',
-          alignItems: 'flex-end',
-          flexGrow: 1,
-          marginLeft: 2,
+          alignItems: 'flex-start',
         }}
       >
         {devilAsciiLines.map((line, i) => (
