@@ -31,6 +31,7 @@
     "chalk": "^5.6.2",
     "cli-table3": "^0.6.5",
     "dotenv": "^17.2.3",
+    "figlet": "^1.9.4",
     "figures": "^6.1.0",
     "react": "^19.0.0",
     "react-reconciler": "^0.32.0",

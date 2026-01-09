@@ -9,6 +9,7 @@ import {
 } from '@mks2508/opentui-image'
 import type { BannerConfig } from '../types.js'
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
 
 declare module '@opentui/react' {
   interface OpenTUIComponents {
@@ -44,6 +45,18 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
   const termWidth = renderer?.terminalWidth ?? 80
   const [loadError, setLoadError] = useState<Error | null>(null)
   const [backendReady, setBackendReady] = useState(false)
+  const [devilAscii, setDevilAscii] = useState<string>('')
+
+  // Load devil ASCII art as single string
+  useEffect(() => {
+    try {
+      const asciiPath = resolve(process.cwd(), 'assets/devil1.ascii.txt')
+      const asciiContent = readFileSync(asciiPath, 'utf-8')
+      setDevilAscii(asciiContent.trim())
+    } catch (err) {
+      console.error('Failed to load devil ASCII:', err)
+    }
+  }, [])
 
   useEffect(() => {
     if (config.mode === 'image') {
@@ -80,13 +93,13 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
       style={{
         flexDirection: 'row',
         width: '100%',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        alignItems: 'flex-start',
         marginBottom: 0,
         paddingLeft: 1,
         paddingRight: 1,
       }}
     >
+      {/* Left: Image */}
       {shouldShowAscii ? (
         <box style={{ flexDirection: 'column' }}>
           {ASCII_BANNER_COMPACT.map((line, i) => (
@@ -99,32 +112,31 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
           ))}
         </box>
       ) : (
-        <box style={{ width: imageWidth, height: imageHeight }}>
-          {imagePath && backendReady && (
-            config.animated ? (
-              <terminal-gif
-                src={imagePath}
-                width={imageWidth}
-                height={imageHeight}
-                animated={true}
-                autoPlay={true}
-                loop={true}
-                objectFit="contain"
-                onError={handleImageError}
-              />
-            ) : (
-              <terminal-image
-                src={imagePath}
-                width={imageWidth}
-                height={imageHeight}
-                objectFit="contain"
-                onError={handleImageError}
-              />
-            )
-          )}
-        </box>
+        imagePath && backendReady && (
+          config.animated ? (
+            <terminal-gif
+              src={imagePath}
+              width={imageWidth}
+              height={imageHeight}
+              animated={true}
+              autoPlay={true}
+              loop={true}
+              objectFit="contain"
+              onError={handleImageError}
+            />
+          ) : (
+            <terminal-image
+              src={imagePath}
+              width={imageWidth}
+              height={imageHeight}
+              objectFit="contain"
+              onError={handleImageError}
+            />
+          )
+        )
       )}
 
+      {/* Right: Devil ASCII only */}
       <box
         style={{
           flexDirection: 'column',
@@ -133,12 +145,10 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
           marginLeft: 2,
         }}
       >
-        <text style={{ fg: THEME.cyan }}>
-          {config.title}
-        </text>
-        {config.subtitle && (
-          <text style={{ fg: THEME.textDim }}>
-            {config.subtitle}
+        {/* Devil ASCII as single text block */}
+        {devilAscii && (
+          <text style={{ fg: THEME.magenta }}>
+            {devilAscii}
           </text>
         )}
       </box>

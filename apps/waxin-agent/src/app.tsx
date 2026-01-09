@@ -83,9 +83,9 @@ const TEXTAREA_KEYBINDINGS: Array<{
   super?: boolean
   action: 'submit' | 'newline'
 }> = [
-  { name: 'return', action: 'submit' },
-  { name: 'return', shift: true, action: 'newline' },
-]
+    { name: 'return', action: 'submit' },
+    { name: 'return', shift: true, action: 'newline' },
+  ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
@@ -261,12 +261,14 @@ export const App = () => {
 
               // Intercept AskUserQuestion tool calls
               if (tool === 'AskUserQuestion' && input && typeof input === 'object') {
-                const askInput = input as { questions?: Array<{
-                  question: string
-                  header: string
-                  options: Array<{ label: string; description: string }>
-                  multiSelect: boolean
-                }> }
+                const askInput = input as {
+                  questions?: Array<{
+                    question: string
+                    header: string
+                    options: Array<{ label: string; description: string }>
+                    multiSelect: boolean
+                  }>
+                }
 
                 if (askInput.questions && askInput.questions.length > 0) {
                   const firstQuestion = askInput.questions[0]
@@ -391,6 +393,15 @@ export const App = () => {
         marginBottom: 1,
       }}
     >
+      {/* Subtitle centered above prompt - always show when exists */}
+      {bannerConfig.subtitle && (
+        <box style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 1 }}>
+          <text style={{ fg: THEME.textDim }}>
+            {bannerConfig.subtitle}
+          </text>
+        </box>
+      )}
+
       <box
         style={{
           border: true,
@@ -406,7 +417,7 @@ export const App = () => {
           <textarea
             ref={(r: TextareaRenderable | null) => { textareaRef.current = r }}
             initialValue=""
-            placeholder='Ask anything... "List my bots"'
+            placeholder='Dime algo waxin... Puedes listar tus bots, crear nuevos, o simplemente joder'
             onSubmit={handleTextareaSubmit}
             keyBindings={TEXTAREA_KEYBINDINGS}
             focused={!isExecuting}

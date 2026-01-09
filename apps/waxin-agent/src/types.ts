@@ -115,12 +115,12 @@ export interface BannerConfig {
  */
 export const DEFAULT_BANNER_CONFIG: BannerConfig = {
   mode: 'image',
-  imageSrc: './assets/mr-robot-1.gif',
-  title: 'WAXIN Agent',
-  subtitle: 'Bot Manager TUI',
-  animated: true,
-  imageWidth: 40,
-  imageHeight: 8
+  imageSrc: './assets/luciadibu.png',
+  title: '',
+  subtitle: 'Agente de código y gestión de bots muy basado 😈',
+  animated: false,
+  imageWidth: 70,
+  imageHeight: 29
 }
 
 /**
