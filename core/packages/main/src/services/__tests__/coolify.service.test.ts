@@ -374,4 +374,617 @@ describe('CoolifyService', () => {
       expect(instance1).toBe(instance2)
     })
   })
+
+  describe('listApplications()', () => {
+    it('should return list of applications', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify([
+            { uuid: 'app-1', name: 'App 1', status: 'running' },
+            { uuid: 'app-2', name: 'App 2', status: 'stopped' },
+          ]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listApplications()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(2)
+        expect(result.value[0].uuid).toBe('app-1')
+        expect(result.value[0].name).toBe('App 1')
+        expect(result.value[1].status).toBe('stopped')
+      }
+    })
+
+    it('should return empty array if no applications', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify([]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listApplications()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(0)
+      }
+    })
+
+    it('should filter by teamId when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify([{ uuid: 'app-1', name: 'Team App', status: 'running' }]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.listApplications('team-123')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('team_id=team-123'),
+        expect.any(Object)
+      )
+    })
+
+    it('should filter by projectId when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify([]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.listApplications(undefined, 'project-456')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('project_id=project-456'),
+        expect.any(Object)
+      )
+    })
+
+    it('should handle API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => JSON.stringify({ message: 'Internal server error' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listApplications()
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Internal server error')
+      }
+    })
+  })
+
+  describe('deleteApplication()', () => {
+    it('should delete application successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ message: 'deleted' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.deleteApplication('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.success).toBe(true)
+      }
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/applications/app-uuid',
+        expect.objectContaining({
+          method: 'DELETE',
+        })
+      )
+    })
+
+    it('should handle not found error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ message: 'Application not found' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.deleteApplication('nonexistent')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Application not found')
+      }
+    })
+
+    it('should handle network error', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.deleteApplication('app-uuid')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Network error')
+      }
+    })
+  })
+
+  describe('updateApplication()', () => {
+    it('should update application with all options', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            uuid: 'app-uuid',
+            name: 'Updated App',
+            status: 'running',
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.updateApplication('app-uuid', {
+        name: 'Updated App',
+        description: 'New description',
+        buildPack: 'nixpacks',
+        gitBranch: 'develop',
+        portsExposes: '3000,8080',
+        installCommand: 'bun install',
+        buildCommand: 'bun run build',
+        startCommand: 'bun run start',
+      })
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.name).toBe('Updated App')
+      }
+    })
+
+    it('should update application with partial options', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            uuid: 'app-uuid',
+            name: 'Renamed App',
+            status: 'running',
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.updateApplication('app-uuid', {
+        name: 'Renamed App',
+      })
+
+      expect(isOk(result)).toBe(true)
+    })
+
+    it('should handle validation error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        text: async () => JSON.stringify({ message: 'Invalid build pack' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.updateApplication('app-uuid', {
+        buildPack: 'dockerfile',
+      })
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Invalid build pack')
+      }
+    })
+
+    it('should send correct API payload', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ uuid: 'app-uuid', name: 'Test', status: 'running' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.updateApplication('app-uuid', {
+        name: 'New Name',
+        gitBranch: 'main',
+        buildCommand: 'npm build',
+      })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/applications/app-uuid',
+        expect.objectContaining({
+          method: 'PATCH',
+        })
+      )
+
+      const callArgs = mockFetch.mock.calls[0]
+      const body = JSON.parse(callArgs[1].body)
+      expect(body.name).toBe('New Name')
+      expect(body.git_branch).toBe('main')
+      expect(body.build_command).toBe('npm build')
+    })
+  })
+
+  describe('getApplicationLogs()', () => {
+    it('should return logs successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            logs: ['Line 1', 'Line 2', 'Line 3'],
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getApplicationLogs('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.logs).toHaveLength(3)
+        expect(result.value.logs[0]).toBe('Line 1')
+        expect(result.value.timestamp).toBeDefined()
+      }
+    })
+
+    it('should support tail option', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ logs: ['Last line'] }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.getApplicationLogs('app-uuid', { tail: 50 })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('tail=50'),
+        expect.any(Object)
+      )
+    })
+
+    it('should support follow option', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ logs: [] }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.getApplicationLogs('app-uuid', { follow: true })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('follow=true'),
+        expect.any(Object)
+      )
+    })
+
+    it('should return empty logs array if none', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ logs: [] }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getApplicationLogs('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.logs).toHaveLength(0)
+      }
+    })
+
+    it('should handle error when app not found', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ message: 'Application not found' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getApplicationLogs('nonexistent')
+
+      expect(isErr(result)).toBe(true)
+    })
+  })
+
+  describe('getApplicationDeploymentHistory()', () => {
+    it('should return deployment history', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify([
+            {
+              id: '1',
+              uuid: 'deploy-1',
+              status: 'built',
+              createdAt: '2024-01-01T00:00:00Z',
+              finishedAt: '2024-01-01T00:05:00Z',
+              commit: 'abc123',
+            },
+            {
+              id: '2',
+              uuid: 'deploy-2',
+              status: 'failed',
+              createdAt: '2024-01-02T00:00:00Z',
+            },
+          ]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getApplicationDeploymentHistory('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(2)
+        expect(result.value[0].status).toBe('built')
+        expect(result.value[0].commit).toBe('abc123')
+        expect(result.value[1].status).toBe('failed')
+      }
+    })
+
+    it('should return empty array if no deployments', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify([]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getApplicationDeploymentHistory('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(0)
+      }
+    })
+
+    it('should handle error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => JSON.stringify({ message: 'Server error' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getApplicationDeploymentHistory('app-uuid')
+
+      expect(isErr(result)).toBe(true)
+    })
+
+    it('should call correct endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify([]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.getApplicationDeploymentHistory('app-uuid')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/applications/app-uuid/deployments',
+        expect.any(Object)
+      )
+    })
+  })
+
+  describe('startApplication()', () => {
+    it('should start application successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            uuid: 'app-uuid',
+            name: 'Test App',
+            status: 'running',
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.startApplication('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.status).toBe('running')
+      }
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/applications/app-uuid/start',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test_coolify_token',
+          }),
+        })
+      )
+    })
+
+    it('should handle already running error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: async () => JSON.stringify({ message: 'Application is already running' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.startApplication('app-uuid')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('already running')
+      }
+    })
+
+    it('should handle not found error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ message: 'Application not found' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.startApplication('nonexistent')
+
+      expect(isErr(result)).toBe(true)
+    })
+  })
+
+  describe('stopApplication()', () => {
+    it('should stop application successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            uuid: 'app-uuid',
+            name: 'Test App',
+            status: 'stopped',
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.stopApplication('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.status).toBe('stopped')
+      }
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/applications/app-uuid/stop',
+        expect.objectContaining({
+          method: 'POST',
+        })
+      )
+    })
+
+    it('should handle already stopped error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: async () => JSON.stringify({ message: 'Application is already stopped' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.stopApplication('app-uuid')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('already stopped')
+      }
+    })
+
+    it('should handle not found error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ message: 'Application not found' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.stopApplication('nonexistent')
+
+      expect(isErr(result)).toBe(true)
+    })
+  })
+
+  describe('restartApplication()', () => {
+    it('should restart application successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            uuid: 'app-uuid',
+            name: 'Test App',
+            status: 'running',
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.restartApplication('app-uuid')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.uuid).toBe('app-uuid')
+      }
+    })
+
+    it('should handle error during restart', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => JSON.stringify({ message: 'Restart failed' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.restartApplication('app-uuid')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Restart failed')
+      }
+    })
+
+    it('should verify correct endpoint called', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({ uuid: 'app-uuid', name: 'Test', status: 'running' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      await service.restartApplication('app-uuid')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/applications/app-uuid/restart',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test_coolify_token',
+          }),
+        })
+      )
+    })
+
+    it('should handle not found error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ message: 'Application not found' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.restartApplication('nonexistent')
+
+      expect(isErr(result)).toBe(true)
+    })
+  })
 })
