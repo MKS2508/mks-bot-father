@@ -10,8 +10,14 @@ import { getConfigService } from './config.service.js'
 import {
   type ICoolifyAppOptions,
   type ICoolifyAppResult,
+  type ICoolifyApplication,
+  type ICoolifyDeleteResult,
+  type ICoolifyDeployment,
   type ICoolifyDeployOptions,
   type ICoolifyDeployResult,
+  type ICoolifyLogs,
+  type ICoolifyLogsOptions,
+  type ICoolifyUpdateOptions,
 } from '../types/index.js'
 import { AppErrorCode } from '../types/errors.js'
 
@@ -359,6 +365,250 @@ export class CoolifyService {
   isConfigured(): boolean {
     const config = getConfigService()
     return !!(config.getCoolifyUrl() && config.getCoolifyToken())
+  }
+
+  /**
+   * Lists all applications.
+   *
+   * @param teamId - Optional team ID to filter by
+   * @param projectId - Optional project ID to filter by
+   * @returns Result with applications list or error
+   */
+  async listApplications(
+    teamId?: string,
+    projectId?: string
+  ): Promise<Result<ICoolifyApplication[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info('Listing applications')
+    fileLog.info('COOLIFY', 'List applications', { teamId, projectId })
+
+    let endpoint = '/applications'
+    const params = new URLSearchParams()
+    if (teamId) params.set('team_id', teamId)
+    if (projectId) params.set('project_id', projectId)
+    if (params.toString()) {
+      endpoint += `?${params.toString()}`
+    }
+
+    const result = await this.request<ICoolifyApplication[]>(endpoint)
+
+    if (result.error) {
+      log.error(`Failed to list applications: ${result.error}`)
+      fileLog.error('COOLIFY', 'List applications failed', { error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Listed ${result.data?.length || 0} applications`)
+    fileLog.info('COOLIFY', 'Applications listed', { count: result.data?.length })
+    return ok(result.data || [])
+  }
+
+  /**
+   * Deletes an application.
+   *
+   * @param appUuid - Application UUID
+   * @returns Result indicating success or error
+   */
+  async deleteApplication(
+    appUuid: string
+  ): Promise<Result<ICoolifyDeleteResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Deleting application ${appUuid}`)
+    fileLog.info('COOLIFY', 'Delete application', { appUuid })
+
+    const result = await this.request<ICoolifyDeleteResult>(`/applications/${appUuid}`, {
+      method: 'DELETE',
+    })
+
+    if (result.error) {
+      log.error(`Failed to delete application: ${result.error}`)
+      fileLog.error('COOLIFY', 'Delete application failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Application deleted: ${appUuid}`)
+    fileLog.info('COOLIFY', 'Application deleted', { appUuid })
+    return ok({ success: true, message: 'Application deleted' })
+  }
+
+  /**
+   * Updates an application configuration.
+   *
+   * @param appUuid - Application UUID
+   * @param options - Update options
+   * @returns Result with updated application or error
+   */
+  async updateApplication(
+    appUuid: string,
+    options: ICoolifyUpdateOptions
+  ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Updating application ${appUuid}`)
+    fileLog.info('COOLIFY', 'Update application', { appUuid, options })
+
+    const body: Record<string, unknown> = {}
+    if (options.name) body.name = options.name
+    if (options.description) body.description = options.description
+    if (options.buildPack) body.build_pack = options.buildPack
+    if (options.gitBranch) body.git_branch = options.gitBranch
+    if (options.portsExposes) body.ports_exposes = options.portsExposes
+    if (options.installCommand) body.install_command = options.installCommand
+    if (options.buildCommand) body.build_command = options.buildCommand
+    if (options.startCommand) body.start_command = options.startCommand
+
+    const result = await this.request<ICoolifyApplication>(`/applications/${appUuid}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    })
+
+    if (result.error) {
+      log.error(`Failed to update application: ${result.error}`)
+      fileLog.error('COOLIFY', 'Update application failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Application updated: ${appUuid}`)
+    fileLog.info('COOLIFY', 'Application updated', { appUuid })
+    return ok(result.data as ICoolifyApplication)
+  }
+
+  /**
+   * Gets application logs.
+   *
+   * @param appUuid - Application UUID
+   * @param options - Log retrieval options
+   * @returns Result with logs or error
+   */
+  async getApplicationLogs(
+    appUuid: string,
+    options: ICoolifyLogsOptions = {}
+  ): Promise<Result<ICoolifyLogs, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Getting logs for application ${appUuid}`)
+    fileLog.info('COOLIFY', 'Get application logs', { appUuid, options })
+
+    const params = new URLSearchParams()
+    if (options.follow) params.set('follow', 'true')
+    if (options.tail) params.set('tail', options.tail.toString())
+
+    const endpoint = `/applications/${appUuid}/logs${params.toString() ? `?${params.toString()}` : ''}`
+
+    const result = await this.request<{ logs: string[] }>(endpoint)
+
+    if (result.error) {
+      log.error(`Failed to get logs: ${result.error}`)
+      fileLog.error('COOLIFY', 'Get logs failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Logs retrieved for application: ${appUuid}`)
+    fileLog.info('COOLIFY', 'Logs retrieved', { appUuid, logCount: result.data?.logs?.length })
+    return ok({
+      logs: result.data?.logs || [],
+      timestamp: new Date().toISOString(),
+    })
+  }
+
+  /**
+   * Gets deployment history for an application.
+   *
+   * @param appUuid - Application UUID
+   * @returns Result with deployment history or error
+   */
+  async getApplicationDeploymentHistory(
+    appUuid: string
+  ): Promise<Result<ICoolifyDeployment[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Getting deployment history for ${appUuid}`)
+    fileLog.info('COOLIFY', 'Get deployment history', { appUuid })
+
+    const result = await this.request<ICoolifyDeployment[]>(`/applications/${appUuid}/deployments`)
+
+    if (result.error) {
+      log.error(`Failed to get deployment history: ${result.error}`)
+      fileLog.error('COOLIFY', 'Get deployment history failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Deployment history retrieved for ${appUuid}`)
+    fileLog.info('COOLIFY', 'Deployment history retrieved', { appUuid, count: result.data?.length })
+    return ok(result.data || [])
+  }
+
+  /**
+   * Starts a stopped application.
+   *
+   * @param appUuid - Application UUID
+   * @returns Result with application status or error
+   */
+  async startApplication(
+    appUuid: string
+  ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Starting application ${appUuid}`)
+    fileLog.info('COOLIFY', 'Start application', { appUuid })
+
+    const result = await this.request<ICoolifyApplication>(`/applications/${appUuid}/start`, {
+      method: 'POST',
+    })
+
+    if (result.error) {
+      log.error(`Failed to start application: ${result.error}`)
+      fileLog.error('COOLIFY', 'Start application failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Application started: ${appUuid}`)
+    fileLog.info('COOLIFY', 'Application started', { appUuid })
+    return ok(result.data as ICoolifyApplication)
+  }
+
+  /**
+   * Stops a running application.
+   *
+   * @param appUuid - Application UUID
+   * @returns Result with application status or error
+   */
+  async stopApplication(
+    appUuid: string
+  ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Stopping application ${appUuid}`)
+    fileLog.info('COOLIFY', 'Stop application', { appUuid })
+
+    const result = await this.request<ICoolifyApplication>(`/applications/${appUuid}/stop`, {
+      method: 'POST',
+    })
+
+    if (result.error) {
+      log.error(`Failed to stop application: ${result.error}`)
+      fileLog.error('COOLIFY', 'Stop application failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Application stopped: ${appUuid}`)
+    fileLog.info('COOLIFY', 'Application stopped', { appUuid })
+    return ok(result.data as ICoolifyApplication)
+  }
+
+  /**
+   * Restarts an application.
+   *
+   * @param appUuid - Application UUID
+   * @returns Result with application status or error
+   */
+  async restartApplication(
+    appUuid: string
+  ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    log.info(`Restarting application ${appUuid}`)
+    fileLog.info('COOLIFY', 'Restart application', { appUuid })
+
+    const result = await this.request<ICoolifyApplication>(`/applications/${appUuid}/restart`, {
+      method: 'POST',
+    })
+
+    if (result.error) {
+      log.error(`Failed to restart application: ${result.error}`)
+      fileLog.error('COOLIFY', 'Restart application failed', { appUuid, error: result.error })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Application restarted: ${appUuid}`)
+    fileLog.info('COOLIFY', 'Application restarted', { appUuid })
+    return ok(result.data as ICoolifyApplication)
   }
 }
 
