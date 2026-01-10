@@ -7,6 +7,10 @@ export {
   resetAgentBridge
 } from './useAgent.js'
 
+export {
+  useAgentStatsShared
+} from './useAgentStatsShared.js'
+
 export type { UseAgentState } from './useAgent.js'
 
 export {

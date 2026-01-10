@@ -8,15 +8,34 @@ import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useAgent } from './hooks/useAgent.js'
 import { log, tuiLogger } from './lib/json-logger.js'
-import { getStats, updateStats, formatTokens, formatCost } from './hooks/useStats.js'
-import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header, StatsBarMinimal, PositionedOverlay, DEFAULT_OVERLAY_CONFIGS, getOverlayComponent, hasOverlay } from './components/index.js'
+import { updateStats } from './hooks/useStats.js'
+import {
+  Banner,
+  initImageBackends,
+  QuestionModal,
+  Topbar,
+  FloatingImage,
+  initFloatingImageBackends,
+  ThinkingIndicator,
+  SplashScreen,
+  Header,
+  StatsBarMinimal,
+  PositionedOverlay,
+  DEFAULT_OVERLAY_CONFIGS,
+  getOverlayComponent,
+  PromptBox,
+  StatusBar,
+  MessageList,
+  Footer
+} from './components/index.js'
+import { HelpDialogContent } from './components/help/HelpDialogContent.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
-import type { AgentStats, BannerConfig, UserQuestion } from './types.js'
+import type { BannerConfig, UserQuestion } from './types.js'
 import type { DebugTab } from './components/index.js'
 import { DEFAULT_BANNER_CONFIG, FLOATING_IMAGE_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
-import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker, ShortcutCategory, formatShortcutKeysWithSequences } from './shortcuts.js'
+import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker } from './shortcuts.js'
 import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
 import type { OverlayConfig } from './components/overlays/OverlayTypes.js'
 import { THEME } from './theme/colors.js'
@@ -81,135 +100,6 @@ function getAgentOptions(agentType: AgentType): import('./lib/agent-bridge.js').
   }
 }
 
-// Custom keybindings for textarea: Enter = submit, Shift+Enter = newline
-const TEXTAREA_KEYBINDINGS: Array<{
-  name: string
-  shift?: boolean
-  ctrl?: boolean
-  meta?: boolean
-  super?: boolean
-  action: 'submit' | 'newline'
-}> = [
-    { name: 'return', action: 'submit' },
-    { name: 'return', shift: true, action: 'newline' },
-  ]
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HELP DIALOG CONTENT
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const HELP_CATEGORIES = [
-  { key: ShortcutCategory.HELP, label: 'Help', color: THEME.magenta },
-  { key: ShortcutCategory.FOCUS, label: 'Focus', color: THEME.green },
-  { key: ShortcutCategory.DEBUG, label: 'Debug', color: THEME.purple },
-  { key: ShortcutCategory.MESSAGES, label: 'Messages', color: THEME.blue },
-  { key: ShortcutCategory.NAVIGATION, label: 'Navigation', color: THEME.cyan },
-  { key: ShortcutCategory.SYSTEM, label: 'System', color: THEME.orange },
-  { key: ShortcutCategory.TESTING, label: 'Testing', color: THEME.yellow },
-] as const
-
-interface HelpDialogContentProps {
-  onShowOverlay: (shortcutId: Shortcut) => void
-  onDirectAction: (shortcutId: Shortcut) => void  // For actions that don't open overlays
-}
-
-function HelpDialogContent({ onShowOverlay, onDirectAction }: HelpDialogContentProps) {
-  return (
-    <box style={{ flexDirection: 'column', gap: 1 }}>
-      {HELP_CATEGORIES.map(cat => {
-        const shortcuts = SHORTCUTS.filter(s => s.category === cat.key)
-        if (shortcuts.length === 0) return null
-
-        return (
-          <box key={cat.key} style={{ flexDirection: 'column' }}>
-            <text style={{ fg: cat.color as any }}>
-              {cat.label}
-            </text>
-            {shortcuts.map((shortcut, i) => {
-              // Non-clickable: TOGGLE_HELP, CLOSE_HELP
-              const isClickable = shortcut.id !== Shortcut.TOGGLE_HELP && shortcut.id !== Shortcut.CLOSE_HELP
-              const hasOverlayComp = hasOverlay(shortcut.id)
-
-              return (
-                <box
-                  key={i}
-                  style={{
-                    flexDirection: 'column',
-                    marginBottom: 1,
-                    padding: 1,
-                    backgroundColor: isClickable ? (hasOverlayComp ? '#2a2139' : '#262335') : undefined,
-                    border: isClickable ? true : undefined,
-                    borderColor: hasOverlayComp ? THEME.purple : THEME.bgPanel,
-                    borderStyle: 'single',
-                  }}
-                  onMouseUp={isClickable ? () => {
-                    // Log click event
-                    tuiLogger.info('Help option clicked', {
-                      shortcut: shortcut.id,
-                      description: shortcut.description,
-                      hasOverlay: hasOverlayComp,
-                    })
-                    // Check if this shortcut has an overlay
-                    if (hasOverlayComp) {
-                      onShowOverlay(shortcut.id)
-                    } else {
-                      onDirectAction(shortcut.id)
-                    }
-                  } : undefined}
-                >
-                  {/* Shortcut name with keyboard hint */}
-                  <box style={{ flexDirection: 'row', gap: 2 }}>
-                    <text style={{
-                      fg: THEME.cyan as any,
-                      width: 20,
-                    }}>
-                      {formatShortcutKeysWithSequences(shortcut)}
-                    </text>
-
-                    {/* Description */}
-                    <text style={{
-                      fg: THEME.text as any,
-                      flexGrow: 1,
-                    }}>
-                      {shortcut.description}
-                    </text>
-
-                    {/* Click indicator */}
-                    {isClickable && (
-                      <text style={{ fg: hasOverlayComp ? THEME.magenta : THEME.green as any }}>
-                        {hasOverlayComp ? '[→]' : '[▶]'}
-                      </text>
-                    )}
-                  </box>
-
-                  {/* Additional hint for overlay items */}
-                  {isClickable && hasOverlayComp && (
-                    <text style={{ fg: THEME.textDim as any }}>
-                      {' Opens overlay window'}
-                    </text>
-                  )}
-                </box>
-              )
-            })}
-          </box>
-        )
-      })}
-
-      <box style={{ marginTop: 1, flexDirection: 'row', gap: 2 }}>
-        <text style={{ fg: THEME.textMuted as any }}>
-          Click any option to open
-        </text>
-        <text style={{ fg: THEME.magenta as any }}>
-          {'→'}
-        </text>
-        <text style={{ fg: THEME.textMuted as any }}>
-          {' overlay or press Esc to close'}
-        </text>
-      </box>
-    </box>
-  )
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP CONTENT (uses useDialog)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -224,7 +114,6 @@ const AppContent = () => {
   const [isExecuting, setIsExecuting] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
-  const [stats, setStats] = useState<AgentStats | null>(null)
   const [currentAgent, setCurrentAgent] = useState<AgentType>('build')
   const [bannerConfig] = useState<BannerConfig>(DEFAULT_BANNER_CONFIG)
   const [activeQuestion, setActiveQuestion] = useState<UserQuestion | null>(null)
@@ -413,14 +302,14 @@ const AppContent = () => {
             dialog.close()
             // Small delay to ensure dialog state updates
             setTimeout(() => {
-              showOverlay(shortcutId)
+              showOverlay(shortcutId as Shortcut)
             }, 10)
           }}
           onDirectAction={(shortcutId) => {
             tuiLogger.info('Help dialog: direct action clicked', { shortcutId })
             // Execute action directly and close help
             dialog.close()
-            executeShortcut(shortcutId)
+            executeShortcut(shortcutId as Shortcut)
           }}
         />
       ),
@@ -525,18 +414,6 @@ const AppContent = () => {
       }
     }
   })
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Update stats periodically
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentStats = getStats()
-      if (currentStats) setStats(currentStats)
-    }, 500)
-    return () => clearInterval(interval)
-  }, [])
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Subscribe to question state changes
@@ -741,15 +618,11 @@ const AppContent = () => {
   }, [handleSubmit, isExecuting])
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Build status badges
+  // Build status badges for components
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const statusBadge = isStreaming ? '◓' : isExecuting ? '◐' : '●'
   const currentOptions = getAgentOptions(currentAgent)
   const modelBadge = currentOptions.model?.replace('claude-', '') || 'sonnet-4-5'
-  const statsBadge = stats
-    ? `${formatTokens(stats.totalTokens)} tk · ${formatCost(stats.totalCostUsd)}`
-    : ''
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Render Components
@@ -757,150 +630,6 @@ const AppContent = () => {
 
   const hasMessages = messages.length > 0
   const currentAgentInfo = AGENTS.find(a => a.type === currentAgent)
-
-  const PromptBox = ({ centered = false }: { centered?: boolean }) => (
-    <box
-      style={{
-        flexDirection: 'column',
-        width: centered ? '70%' : '100%',
-        alignItems: centered ? 'center' : 'stretch',
-        marginTop: centered ? 2 : 0,
-        marginBottom: 1,
-      }}
-    >
-      {/* Subtitle centered above prompt - always show when exists */}
-      {bannerConfig.subtitle && (
-        <box style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 1 }}>
-          <text style={{ fg: THEME.textDim }}>
-            {bannerConfig.subtitle}
-          </text>
-        </box>
-      )}
-
-      <box
-        style={{
-          border: true,
-          borderStyle: 'rounded',
-          borderColor: textareaFocused ? THEME.cyan : (isExecuting ? THEME.textMuted : THEME.purple),
-          backgroundColor: THEME.bgPanel,
-          padding: 1,
-          width: '100%',
-        }}
-      >
-        <box style={{ flexDirection: 'row', width: '100%' }}>
-          <text style={{ fg: THEME.magenta }}>▎ </text>
-          <textarea
-            ref={textareaRef}
-            initialValue=""
-            placeholder='Dime algo waxin... Puedes listar tus bots, crear nuevos, o simplemente joder'
-            onSubmit={handleTextareaSubmit}
-            keyBindings={TEXTAREA_KEYBINDINGS}
-            focused={textareaFocused && !isExecuting}
-            textColor={THEME.text}
-            style={{ width: '100%', height: 4 }}
-          />
-        </box>
-        <box style={{ flexDirection: 'row', marginTop: 1 }}>
-          <text style={{ fg: currentAgentInfo?.color ?? THEME.cyan }}>
-            {currentAgentInfo?.label ?? 'Build'}
-          </text>
-          <text style={{ fg: THEME.textDim }}> · {modelBadge}</text>
-          {statsBadge && (
-            <text style={{ fg: THEME.textMuted }}> · {statsBadge}</text>
-          )}
-        </box>
-      </box>
-      {centered && (
-        <box style={{ flexDirection: 'row', marginTop: 1, justifyContent: 'center' }}>
-          <text style={{ fg: THEME.textMuted }}>tab</text>
-          <text style={{ fg: THEME.textDim }}> switch agent  </text>
-          <text style={{ fg: THEME.textMuted }}>ctrl+c</text>
-          <text style={{ fg: THEME.textDim }}> quit</text>
-        </box>
-      )}
-    </box>
-  )
-
-  const StatusBar = () => (
-    <box
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        paddingLeft: 1,
-        paddingRight: 1,
-      }}
-    >
-      <box style={{ flexDirection: 'row' }}>
-        <text style={{ fg: isStreaming ? THEME.cyan : isExecuting ? THEME.yellow : THEME.green }}>
-          {statusBadge}{' '}
-        </text>
-        <text style={{ fg: currentAgentInfo?.color ?? THEME.cyan }}>
-          {currentAgentInfo?.label ?? 'Build'}
-        </text>
-        <text style={{ fg: THEME.textDim }}> · {modelBadge}</text>
-        {statsBadge && <text style={{ fg: THEME.textMuted }}> · {statsBadge}</text>}
-      </box>
-      <box style={{ flexDirection: 'row' }}>
-        <text style={{ fg: THEME.textMuted }}>ctrl+c </text>
-        <text style={{ fg: THEME.textDim }}>quit  </text>
-        <text style={{ fg: THEME.textMuted }}>ctrl+k </text>
-        <text style={{ fg: THEME.textDim }}>clear  </text>
-        <text style={{ fg: THEME.textMuted }}>shift+tab </text>
-        <text style={{ fg: THEME.textDim }}>agent</text>
-      </box>
-    </box>
-  )
-
-  const Footer = () => (
-    <box
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-        paddingLeft: 1,
-        paddingRight: 1,
-        marginTop: 1,
-      }}
-    >
-      <text style={{ fg: THEME.textMuted }}>~/waxin-agent:master</text>
-      <text style={{ fg: THEME.textMuted }}>v0.1.0</text>
-    </box>
-  )
-
-  const MessageList = () => (
-    <scrollbox
-      style={{
-        rootOptions: {
-          backgroundColor: 'transparent',
-          width: '100%',
-          height: '100%',
-        },
-        wrapperOptions: {
-          backgroundColor: 'transparent',
-        },
-        viewportOptions: {
-          backgroundColor: 'transparent',
-        },
-        contentOptions: {
-          backgroundColor: 'transparent',
-        },
-        scrollbarOptions: {
-          trackOptions: {
-            foregroundColor: THEME.purple,
-            backgroundColor: THEME.bgDark,
-          },
-        },
-      }}
-      scrollY={true}
-      focused={!isExecuting}
-    >
-      {messages.map((msg) => (
-        <ChatBubble message={msg} />
-      ))}
-    </scrollbox>
-  )
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Main Render
@@ -946,7 +675,7 @@ const AppContent = () => {
               minHeight: '60%',
             }}
           >
-            <MessageList />
+            <MessageList messages={messages} isExecuting={isExecuting} />
           </box>
 
           {/* Thinking Indicator - animated spinner with personality words */}
@@ -955,10 +684,24 @@ const AppContent = () => {
           )}
 
           {/* Prompt */}
-          <PromptBox centered={false} />
+          <PromptBox
+            centered={false}
+            bannerSubtitle={bannerConfig.subtitle}
+            textareaRef={textareaRef}
+            textareaFocused={textareaFocused}
+            isExecuting={isExecuting}
+            currentAgentInfo={currentAgentInfo}
+            modelBadge={modelBadge}
+            onSubmit={handleTextareaSubmit}
+          />
 
           {/* Status Bar */}
-          <StatusBar />
+          <StatusBar
+            isStreaming={isStreaming}
+            isExecuting={isExecuting}
+            currentAgentInfo={currentAgentInfo}
+            modelBadge={modelBadge}
+          />
 
           {/* Floating Image - bottom-right (hidden when dialog is open) */}
           {!isDialogOpen && (
@@ -993,7 +736,16 @@ const AppContent = () => {
               />
             )}
 
-            <PromptBox centered={true} />
+            <PromptBox
+              centered={true}
+              bannerSubtitle={bannerConfig.subtitle}
+              textareaRef={textareaRef}
+              textareaFocused={textareaFocused}
+              isExecuting={isExecuting}
+              currentAgentInfo={currentAgentInfo}
+              modelBadge={modelBadge}
+              onSubmit={handleTextareaSubmit}
+            />
           </box>
         </>
       )}

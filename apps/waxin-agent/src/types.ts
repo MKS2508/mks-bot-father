@@ -286,3 +286,21 @@ export const SPINNER_WORDS: readonly string[] = [
   'gran topo',
   'deymos',
 ] as const
+
+/**
+ * Chat message structure.
+ */
+export interface Message {
+  role: 'user' | 'assistant' | 'tool'
+  content: string
+  timestamp: Date
+}
+
+/**
+ * Agent information display.
+ */
+export interface AgentInfo {
+  type: string
+  label: string
+  color: string
+}

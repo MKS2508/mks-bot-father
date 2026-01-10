@@ -8,6 +8,13 @@ export { SplashScreen } from './SplashScreen.js'
 export { Header } from './Header.js'
 export { StatsBar, StatsBarMinimal } from './StatsBar.js'
 
+// New extracted components
+export { PromptBox } from './PromptBox.js'
+export { StatusBar } from './StatusBar.js'
+export { MessageList } from './MessageList.js'
+export { Footer } from './Footer.js'
+export { HelpDialogContent } from './help/HelpDialogContent.js'
+
 // Debug components
 export { WAXIN_THEME_COLORS, processColorPalette, formatColorPaletteAsText } from './ColorPalette.js'
 export { useKeypressDebug, formatEvent, exportEventsToJSON, getExportFilename } from './KeypressDebug.js'
