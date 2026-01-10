@@ -12,9 +12,18 @@ import { getStats, updateStats, formatTokens, formatCost } from './hooks/useStat
 import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header, StatsBarMinimal } from './components/index.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
 import type { AgentStats, BannerConfig, UserQuestion } from './types.js'
+import type { DebugTab } from './components/index.js'
 import { DEFAULT_BANNER_CONFIG, FLOATING_IMAGE_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
+import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker, ShortcutCategory, formatShortcutKeysWithSequences } from './shortcuts.js'
+import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
+
+const MODE = process.env.MODE || 'DEBUG'
+const SHOW_HEADER = MODE === 'DEBUG'
+
+// Global callback for mouse clicks - registered by App component
+let onMouseClickCallback: (() => void) | null = null
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYNTHWAVE84 THEME
@@ -83,12 +92,62 @@ const TEXTAREA_KEYBINDINGS: Array<{
   ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAIN APP COMPONENT
+// HELP DIALOG CONTENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export const App = () => {
+const HELP_CATEGORIES = [
+  { key: ShortcutCategory.HELP, label: 'Help', color: THEME.magenta },
+  { key: ShortcutCategory.FOCUS, label: 'Focus', color: THEME.green },
+  { key: ShortcutCategory.DEBUG, label: 'Debug', color: THEME.purple },
+  { key: ShortcutCategory.MESSAGES, label: 'Messages', color: THEME.blue },
+  { key: ShortcutCategory.NAVIGATION, label: 'Navigation', color: THEME.cyan },
+  { key: ShortcutCategory.SYSTEM, label: 'System', color: THEME.orange },
+] as const
+
+function HelpDialogContent() {
+  return (
+    <box style={{ flexDirection: 'column', gap: 1 }}>
+      {HELP_CATEGORIES.map(cat => {
+        const shortcuts = SHORTCUTS.filter(s => s.category === cat.key)
+        if (shortcuts.length === 0) return null
+
+        return (
+          <box key={cat.key} style={{ flexDirection: 'column' }}>
+            <text style={{ fg: cat.color as any }}>
+              {cat.label}
+            </text>
+            {shortcuts.map((shortcut, i) => (
+              <box key={i} style={{ flexDirection: 'row', gap: 2 }}>
+                <text style={{ fg: THEME.cyan as any, width: 28 }}>
+                  {formatShortcutKeysWithSequences(shortcut)}
+                </text>
+                <text style={{ fg: THEME.textDim as any }}>
+                  {shortcut.description}
+                </text>
+              </box>
+            ))}
+          </box>
+        )
+      })}
+
+      <box style={{ marginTop: 1 }}>
+        <text style={{ fg: THEME.textMuted as any }}>
+          Press hh / ? / F1 / Esc to close
+        </text>
+      </box>
+    </box>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN APP CONTENT (uses useDialog)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const AppContent = () => {
   const renderer = useRenderer()
   const agent = useAgent()
+  const dialog = useDialog()
+  const isDialogOpen = useDialogState((s) => s.isOpen)
 
   const [splashVisible, setSplashVisible] = useState(DEFAULT_SPLASH_CONFIG.enabled)
   const [isExecuting, setIsExecuting] = useState(false)
@@ -99,18 +158,54 @@ export const App = () => {
   const [bannerConfig] = useState<BannerConfig>(DEFAULT_BANNER_CONFIG)
   const [activeQuestion, setActiveQuestion] = useState<UserQuestion | null>(null)
   const [waxinText, setWaxinText] = useState<string>('')
+  const [debugMode, setDebugMode] = useState(false)
+  const [debugTab, setDebugTab] = useState<DebugTab>('colors')
+  const [textareaFocused, setTextareaFocused] = useState(true)
   const textareaRef = useRef<TextareaRenderable | null>(null)
+  const sequenceTrackerRef = useRef(createSequenceTracker())
+
+  // Function to show help dialog
+  const showHelpDialog = useCallback(() => {
+    dialog.show({
+      content: () => <HelpDialogContent />,
+      size: 'large',
+      backdropOpacity: 0.5,
+      backdropColor: '#1a1a2e',
+      closeOnEscape: true,
+      style: {
+        backgroundColor: '#262335',
+        padding: 2,
+      },
+    })
+    log.info('TUI', 'Help dialog opened')
+  }, [dialog])
 
   // Load WAXIN text
   useEffect(() => {
+    log.info('TUI', `App mode: ${MODE}, SHOW_HEADER: ${SHOW_HEADER}`)
     try {
       const waxinPath = resolve(process.cwd(), 'assets/waxin.ascii.txt')
       const waxinContent = readFileSync(waxinPath, 'utf-8')
       setWaxinText(waxinContent.trim())
+      log.info('TUI', 'WAXIN ASCII loaded', { length: waxinContent.length })
     } catch {
       setWaxinText('WAXIN MK1 😈')
+      log.warn('TUI', 'Failed to load WAXIN ASCII, using fallback')
     }
   }, [])
+
+  // Listen for mouse click events to toggle textarea focus
+  useEffect(() => {
+    const handleMouseClick = () => {
+      setTextareaFocused(prev => !prev)
+      log.info('TUI', `Mouse click: Textarea focus ${!textareaFocused ? 'enabled' : 'disabled'}`)
+    }
+
+    onMouseClickCallback = handleMouseClick
+    return () => {
+      onMouseClickCallback = null
+    }
+  }, [textareaFocused])
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Keyboard shortcuts
@@ -119,67 +214,141 @@ export const App = () => {
   useKeyboard((key) => {
     if (activeQuestion) return
 
+    // Special case: splash screen escape
     if (splashVisible && key.name === 'escape') {
       log.info('TUI', 'Splash screen skipped by user')
       setSplashVisible(false)
       return
     }
 
-    if (key.ctrl && key.name === 'k') {
-      setMessages([])
-      log.debug('TUI', 'Messages cleared by user')
-    }
-    if (key.shift && key.name === 'tab') {
-      const nextAgent = getNextAgent(currentAgent)
-      setCurrentAgent(nextAgent)
-      log.info('TUI', `Agent switched to ${nextAgent}`, { agent: nextAgent })
-    }
-    if (key.ctrl && key.name === 'c') {
-      log.info('TUI', 'Shutting down - user requested exit')
-      renderer?.destroy()
-      process.exit(0)
-    }
-    if (key.name === 'f2') {
-      const testQuestion: UserQuestion = {
-        question: 'Which library should we use for date formatting?',
-        header: 'Library',
-        options: [
-          { label: 'date-fns (Recommended)', description: 'Lightweight and tree-shakeable' },
-          { label: 'moment.js', description: 'Feature-rich but larger bundle size' },
-          { label: 'dayjs', description: 'Immutable and minimal API' },
-          { label: 'Luxon', description: 'Modern Intl-based formatting' },
-        ],
-        multiSelect: false
-      }
-      showQuestion(testQuestion, {
-        onAnswer: (response) => {
-          log.info('TUI', 'Test question answered', { response })
-        },
-        onCancel: () => {
-          log.info('TUI', 'Test question cancelled')
+    // Check all shortcuts using the centralized system
+    const currentState = { debugMode, showHelp: isDialogOpen, textareaFocused }
+
+    for (const shortcut of SHORTCUTS) {
+      // Check if shortcut is enabled in current state
+      if (!isShortcutEnabled(shortcut, currentState)) continue
+
+      // Check if key matches this shortcut (single key or sequence)
+      const keyMatches = matchesShortcut(key, shortcut)
+      const sequenceMatches = matchesSequence(sequenceTrackerRef.current, key, shortcut)
+
+      if (keyMatches || sequenceMatches) {
+        key.preventDefault?.()
+
+        // Execute shortcut action
+        switch (shortcut.id) {
+          case Shortcut.TOGGLE_HELP:
+            if (isDialogOpen) {
+              dialog.close()
+              log.info('TUI', 'Help dialog closed')
+            } else {
+              showHelpDialog()
+            }
+            break
+
+          case Shortcut.CLOSE_HELP:
+            dialog.close()
+            log.info('TUI', 'Help dialog closed')
+            break
+
+          case Shortcut.TEXTAREA_TOGGLE_FOCUS:
+            setTextareaFocused(!textareaFocused)
+            log.info('TUI', `Textarea focus ${textareaFocused ? 'disabled' : 'enabled'}`)
+            break
+
+          case Shortcut.DEBUG_TOGGLE:
+            setDebugMode(!debugMode)
+            log.info('TUI', `Debug mode ${debugMode ? 'disabled' : 'enabled'}`)
+            break
+
+          case Shortcut.DEBUG_TAB_COLORS:
+            setDebugTab('colors')
+            log.debug('TUI', 'Debug tab: colors')
+            break
+
+          case Shortcut.DEBUG_TAB_KEYPRESS:
+            setDebugTab('keypress')
+            log.debug('TUI', 'Debug tab: keypress')
+            break
+
+          case Shortcut.DEBUG_TAB_FPS:
+            setDebugTab('fps')
+            log.debug('TUI', 'Debug tab: fps')
+            break
+
+          case Shortcut.DEBUG_TAB_PERFORMANCE:
+            setDebugTab('performance')
+            log.debug('TUI', 'Debug tab: performance')
+            break
+
+          case Shortcut.DEBUG_CLOSE:
+            setDebugMode(false)
+            log.info('TUI', 'Debug mode closed')
+            break
+
+          case Shortcut.MESSAGES_CLEAR:
+            setMessages([])
+            log.debug('TUI', 'Messages cleared')
+            break
+
+          case Shortcut.AGENT_SWITCH:
+            const nextAgent = getNextAgent(currentAgent)
+            setCurrentAgent(nextAgent)
+            log.info('TUI', `Agent switched to ${nextAgent}`, { agent: nextAgent })
+            break
+
+          case Shortcut.APP_EXIT:
+            log.info('TUI', 'Shutting down - user requested exit')
+            renderer?.destroy()
+            process.exit(0)
+
+          case Shortcut.TEST_QUESTION_SINGLE:
+            const testQuestion: UserQuestion = {
+              question: 'Which library should we use for date formatting?',
+              header: 'Library',
+              options: [
+                { label: 'date-fns (Recommended)', description: 'Lightweight and tree-shakeable' },
+                { label: 'moment.js', description: 'Feature-rich but larger bundle size' },
+                { label: 'dayjs', description: 'Immutable and minimal API' },
+                { label: 'Luxon', description: 'Modern Intl-based formatting' },
+              ],
+              multiSelect: false
+            }
+            showQuestion(testQuestion, {
+              onAnswer: (response) => {
+                log.info('TUI', 'Test question answered', { response })
+              },
+              onCancel: () => {
+                log.info('TUI', 'Test question cancelled')
+              }
+            })
+            break
+
+          case Shortcut.TEST_QUESTION_MULTI:
+            const testMultiQuestion: UserQuestion = {
+              question: 'Which features do you want to enable?',
+              header: 'Features',
+              options: [
+                { label: 'Dark Mode', description: 'Enable dark theme support' },
+                { label: 'Analytics', description: 'Track user interactions' },
+                { label: 'PWA Support', description: 'Progressive web app capabilities' },
+                { label: 'Offline Mode', description: 'Cache data for offline use' },
+              ],
+              multiSelect: true
+            }
+            showQuestion(testMultiQuestion, {
+              onAnswer: (response) => {
+                log.info('TUI', 'Test multi-question answered', { response })
+              },
+              onCancel: () => {
+                log.info('TUI', 'Test multi-question cancelled')
+              }
+            })
+            break
         }
-      })
-    }
-    if (key.name === 'f3') {
-      const testMultiQuestion: UserQuestion = {
-        question: 'Which features do you want to enable?',
-        header: 'Features',
-        options: [
-          { label: 'Dark Mode', description: 'Enable dark theme support' },
-          { label: 'Analytics', description: 'Track user interactions' },
-          { label: 'PWA Support', description: 'Progressive web app capabilities' },
-          { label: 'Offline Mode', description: 'Cache data for offline use' },
-        ],
-        multiSelect: true
+
+        return // Shortcut handled, stop processing
       }
-      showQuestion(testMultiQuestion, {
-        onAnswer: (response) => {
-          log.info('TUI', 'Test multi-question answered', { response })
-        },
-        onCancel: () => {
-          log.info('TUI', 'Test multi-question cancelled')
-        }
-      })
     }
   })
 
@@ -428,7 +597,7 @@ export const App = () => {
         style={{
           border: true,
           borderStyle: 'rounded',
-          borderColor: isExecuting ? THEME.textMuted : THEME.purple,
+          borderColor: textareaFocused ? THEME.cyan : (isExecuting ? THEME.textMuted : THEME.purple),
           backgroundColor: THEME.bgPanel,
           padding: 1,
           width: '100%',
@@ -442,7 +611,7 @@ export const App = () => {
             placeholder='Dime algo waxin... Puedes listar tus bots, crear nuevos, o simplemente joder'
             onSubmit={handleTextareaSubmit}
             keyBindings={TEXTAREA_KEYBINDINGS}
-            focused={!isExecuting}
+            focused={textareaFocused && !isExecuting}
             textColor={THEME.text}
             style={{ width: '100%', height: 4 }}
           />
@@ -556,6 +725,8 @@ export const App = () => {
     return (
       <SplashScreen
         config={DEFAULT_SPLASH_CONFIG}
+        showHeader={SHOW_HEADER}
+        waxinText={waxinText}
         onComplete={() => {
           log.info('TUI', 'Splash screen completed')
           setSplashVisible(false)
@@ -576,7 +747,8 @@ export const App = () => {
     >
       {hasMessages ? (
         <>
-          {/* Chat Layout with Messages: Topbar with integrated stats + Expanded Scrollbox + Prompt + FloatingImage */}
+          {/* Chat Layout with Messages: Header (DEBUG mode) + Topbar + Expanded Scrollbox + Prompt + FloatingImage */}
+          {SHOW_HEADER && <Header waxinText={waxinText || 'WAXIN MK1 😈'} />}
           <Topbar text="WAXIN MK1" font="banner" isStreaming={isStreaming} isExecuting={isExecuting} />
 
           {/* Messages Area - EXPANDED */}
@@ -603,16 +775,18 @@ export const App = () => {
           {/* Status Bar */}
           <StatusBar />
 
-          {/* Floating Image - bottom-right */}
-          <FloatingImage
-            config={FLOATING_IMAGE_CONFIG}
-            onImageError={(err) => log.warn('TUI', 'Floating image failed to load', { error: err.message })}
-          />
+          {/* Floating Image - bottom-right (hidden when dialog is open) */}
+          {!isDialogOpen && (
+            <FloatingImage
+              config={FLOATING_IMAGE_CONFIG}
+              onImageError={(err) => log.warn('TUI', 'Floating image failed to load', { error: err.message })}
+            />
+          )}
         </>
       ) : (
         <>
-          {/* Header con WAXIN animado - arriba del todo */}
-          {waxinText && <Header waxinText={waxinText} />}
+          {/* Header con WAXIN animado - arriba del todo (DEBUG mode) */}
+          {SHOW_HEADER && <Header waxinText={waxinText || 'WAXIN MK1 😈'} />}
 
           {/* Stats Bar - siempre visible debajo del header */}
           <StatsBarMinimal isStreaming={isStreaming} isExecuting={isExecuting} />
@@ -626,10 +800,13 @@ export const App = () => {
               alignItems: 'center',
             }}
           >
-            <Banner
-              config={bannerConfig}
-              onImageError={(err) => log.warn('TUI', 'Banner image failed to load', { error: err.message })}
-            />
+            {/* Banner hidden when dialog is open (terminal images bypass z-index) */}
+            {!isDialogOpen && (
+              <Banner
+                config={bannerConfig}
+                onImageError={(err) => log.warn('TUI', 'Banner image failed to load', { error: err.message })}
+              />
+            )}
 
             <PromptBox centered={true} />
           </box>
@@ -638,6 +815,91 @@ export const App = () => {
 
       {/* Footer - always visible */}
       <Footer />
+
+      {/* Debug Panel - overlay when debug mode is active */}
+      {debugMode && (
+        <box
+          style={{
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            width: 50,
+            minHeight: 15,
+            backgroundColor: '#1a1a2e',
+            borderStyle: 'single',
+            borderColor: THEME.purple,
+            flexDirection: 'column',
+          }}
+        >
+          {/* Debug Header */}
+          <box
+            style={{
+              backgroundColor: '#262335',
+              paddingLeft: 1,
+              paddingRight: 1,
+              paddingBottom: 1,
+            }}
+          >
+            <text style={{ fg: THEME.cyan }}>
+              {`[DEBUG] ${debugTab.toUpperCase()}`}
+            </text>
+            <text style={{ fg: THEME.textMuted }}>
+              {' Ctrl+1-4: Tabs | Esc: Close'}
+            </text>
+          </box>
+
+          {/* Debug Content */}
+          <scrollbox
+            style={{
+              flexGrow: 1,
+              backgroundColor: 'transparent',
+            }}
+          >
+            {debugTab === 'colors' && (
+              <>
+                {['bg', 'bgDark', 'bgPanel', 'purple', 'magenta', 'cyan', 'blue', 'green', 'yellow', 'orange', 'red', 'text', 'textDim', 'textMuted'].map((colorKey, i) => {
+                  const colorMap: Record<string, string> = {
+                    bg: '#262335', bgDark: '#1a1a2e', bgPanel: '#2a2139',
+                    purple: '#b381c5', magenta: '#ff7edb', cyan: '#36f9f6', blue: '#6e95ff',
+                    green: '#72f1b8', yellow: '#fede5d', orange: '#ff8b39', red: '#fe4450',
+                    text: '#ffffff', textDim: '#848bbd', textMuted: '#495495'
+                  }
+                  const color = colorMap[colorKey] || '#ffffff'
+                  const paddedKey = colorKey.padEnd(10, ' ')
+                  return (
+                    <box key={i} style={{ flexDirection: 'row', paddingLeft: 1 }}>
+                      <text style={{ bg: color as any, fg: '#000000' }}>{'█'.repeat(4)}</text>
+                      <text style={{ fg: THEME.textMuted as any }}>{` ${paddedKey}`}</text>
+                      <text style={{ fg: color as any }}>{color}</text>
+                    </box>
+                  )
+                })}
+              </>
+            )}
+            {debugTab === 'keypress' && (
+              <box style={{ paddingLeft: 1, paddingRight: 1 }}>
+                <text style={{ fg: THEME.textMuted as any }}>
+                  Press any key to see events here...
+                </text>
+              </box>
+            )}
+            {debugTab === 'fps' && (
+              <box style={{ paddingLeft: 1, paddingRight: 1 }}>
+                <text style={{ fg: THEME.green as any }}>
+                  FPS Monitor Active
+                </text>
+              </box>
+            )}
+            {debugTab === 'performance' && (
+              <box style={{ paddingLeft: 1, paddingRight: 1 }}>
+                <text style={{ fg: THEME.yellow as any }}>
+                  Performance Tracker
+                </text>
+              </box>
+            )}
+          </scrollbox>
+        </box>
+      )}
 
       {/* Question Modal Overlay */}
       {activeQuestion && (
@@ -653,7 +915,25 @@ export const App = () => {
           }}
         />
       )}
+
     </box>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// APP WRAPPER WITH DIALOG PROVIDER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const App = () => {
+  return (
+    <DialogProvider
+      size="large"
+      backdropColor="#1a1a2e"
+      backdropOpacity={0.5}
+      closeOnEscape={true}
+    >
+      <AppContent />
+    </DialogProvider>
   )
 }
 
@@ -676,12 +956,23 @@ export async function startTUI(): Promise<void> {
   await initFloatingImageBackends()
   log.info('TUI', 'Floating image backends initialized')
 
-  const renderer = await createCliRenderer()
+  const renderer = await createCliRenderer({
+    useMouse: true,
+    enableMouseMovement: false,
+  })
   renderer.setBackgroundColor(THEME.bg)
 
   log.debug('TUI', 'Renderer created', { backgroundColor: THEME.bg })
 
-  createRoot(renderer).render(<App />)
+  const root = createRoot(renderer)
+  root.render(<App />)
+
+  // Global mouse handler - click anywhere to toggle textarea focus
+  renderer.root.onMouse = (event: any) => {
+    if (event.type === 'down' && onMouseClickCallback) {
+      onMouseClickCallback()
+    }
+  }
 
   log.info('TUI', 'TUI rendered and ready')
 }

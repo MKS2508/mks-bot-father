@@ -7,7 +7,9 @@
   "private": true,
   "scripts": {
     "dev": "bun run scripts/dev.ts",
-    "logs": "bun run scripts/log-viewer.ts",
+    "logs": "bun run ../log-viewer/src/index.ts logs",
+    "logs:legacy": "bun run scripts/log-viewer.ts",
+    "logs:tui": "bun run ../log-viewer/src/index.ts logs",
     "build": "tsgo",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint",
@@ -15,7 +17,8 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^20.11.0"
+    "@types/node": "^20.11.0",
+    "@types/react": "^19.2.7"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -24,7 +27,8 @@
     "@mks2508/better-logger": "^4.0.0",
     "@mks2508/bot-manager-agent": "workspace:*",
     "@mks2508/no-throw": "^0.1.0",
-    "@mks2508/opentui-image": "^0.2.1",
+    "@mks2508/opentui-image": "^0.2.3",
+    "@opentui-ui/dialog": "^0.1.2",
     "@opentui/core": "^0.1.70",
     "@opentui/react": "^0.1.70",
     "boxen": "^8.0.1",
