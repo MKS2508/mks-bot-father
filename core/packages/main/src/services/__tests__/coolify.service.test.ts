@@ -987,4 +987,189 @@ describe('CoolifyService', () => {
       expect(isErr(result)).toBe(true)
     })
   })
+
+  describe('getServer()', () => {
+    it('should return server details successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            uuid: 'server-uuid-123',
+            name: 'Production Server',
+            ip: '192.168.1.100',
+            user: 'root',
+            port: 22,
+          }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getServer('server-uuid-123')
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value.uuid).toBe('server-uuid-123')
+        expect(result.value.name).toBe('Production Server')
+      }
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/servers/server-uuid-123',
+        expect.any(Object)
+      )
+    })
+
+    it('should handle not found error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ message: 'Server not found' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getServer('nonexistent')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Server not found')
+      }
+    })
+
+    it('should handle network error', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.getServer('server-uuid')
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Network error')
+      }
+    })
+  })
+
+  describe('listProjects()', () => {
+    it('should return list of projects', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify([
+            { uuid: 'proj-1', name: 'Project 1', description: 'First project' },
+            { uuid: 'proj-2', name: 'Project 2', description: 'Second project' },
+          ]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listProjects()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(2)
+        expect(result.value[0].uuid).toBe('proj-1')
+        expect(result.value[0].name).toBe('Project 1')
+      }
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/projects',
+        expect.any(Object)
+      )
+    })
+
+    it('should return empty array if no projects', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify([]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listProjects()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(0)
+      }
+    })
+
+    it('should handle API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => JSON.stringify({ message: 'Internal server error' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listProjects()
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Internal server error')
+      }
+    })
+  })
+
+  describe('listTeams()', () => {
+    it('should return list of teams', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify([
+            { id: 1, name: 'Team Alpha', description: 'Alpha team' },
+            { id: 2, name: 'Team Beta', description: 'Beta team' },
+          ]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listTeams()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(2)
+        expect(result.value[0].id).toBe(1)
+        expect(result.value[0].name).toBe('Team Alpha')
+      }
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://coolify.test.com/api/v1/teams',
+        expect.any(Object)
+      )
+    })
+
+    it('should return empty array if no teams', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify([]),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listTeams()
+
+      expect(isOk(result)).toBe(true)
+      if (isOk(result)) {
+        expect(result.value).toHaveLength(0)
+      }
+    })
+
+    it('should handle API error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => JSON.stringify({ message: 'Internal server error' }),
+      })
+
+      const service = new CoolifyService()
+      await service.init()
+      const result = await service.listTeams()
+
+      expect(isErr(result)).toBe(true)
+      if (isErr(result)) {
+        expect(result.error.message).toContain('Internal server error')
+      }
+    })
+  })
 })

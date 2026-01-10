@@ -13,6 +13,7 @@ import {
   type IGitHubPushResult,
 } from '../types/index.js'
 import { AppErrorCode } from '../types/errors.js'
+import type { IProgressCallback } from '../types/progress.types.js'
 
 const log = createLogger('GitHubService')
 
@@ -54,11 +55,15 @@ export class GitHubService {
    * @returns Result indicating success or error
    */
   async init(): Promise<Result<void, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const startTime = Date.now()
     const config = getConfigService()
     const tokenResult = await config.resolveGitHubToken()
 
     if (isErr(tokenResult)) {
-      fileLog.error('GITHUB', 'Failed to resolve token', { error: tokenResult.error.message })
+      fileLog.error('GITHUB', 'Failed to resolve token', {
+        error: tokenResult.error.message,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: tokenResult.error.message })
     }
 
@@ -68,12 +73,15 @@ export class GitHubService {
       log.error('No GitHub token available')
       log.info('Configure with: mbf config set github.token <token>')
       log.info('Or authenticate with: gh auth login')
-      fileLog.error('GITHUB', 'No GitHub token available', { reason: 'not_configured' })
+      fileLog.error('GITHUB', 'No GitHub token available', {
+        reason: 'not_configured',
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: 'No GitHub token available' })
     }
 
     log.debug('GitHub token resolved')
-    fileLog.info('GITHUB', 'GitHub service initialized')
+    fileLog.info('GITHUB', 'GitHub service initialized', { duration_ms: Date.now() - startTime })
     return ok(undefined)
   }
 
@@ -123,25 +131,44 @@ export class GitHubService {
    * Creates a repository from a template.
    *
    * @param options - Repository options
+   * @param onProgress - Optional progress callback
    * @returns Result with repository URL and clone URL
    */
   async createRepoFromTemplate(
-    options: IGitHubRepoOptions
+    options: IGitHubRepoOptions,
+    onProgress?: IProgressCallback
   ): Promise<Result<IGitHubRepoResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const startTime = Date.now()
     const templateOwner = options.templateOwner || 'MKS2508'
     const templateRepo = options.templateRepo || 'mks-telegram-bot'
 
+    onProgress?.(10, 'Initializing repository creation', 'init')
+    fileLog.info('GITHUB', 'Creating repository from template', {
+      name: options.name,
+      template: `${templateOwner}/${templateRepo}`,
+      owner: options.owner
+    })
+
+    onProgress?.(25, 'Getting authenticated user', 'auth')
     const userResult = await this.getAuthenticatedUser()
     if (isErr(userResult)) {
+      fileLog.error('GITHUB', 'Failed to get authenticated user', {
+        error: userResult.error.message,
+        duration_ms: Date.now() - startTime
+      })
       return err(userResult.error)
     }
 
     const owner = options.owner || userResult.value
 
     if (!owner) {
+      fileLog.error('GITHUB', 'Could not determine repository owner', {
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: 'Could not determine repository owner' })
     }
 
+    onProgress?.(50, `Creating repository from template ${templateOwner}/${templateRepo}`, 'create')
     log.info(`Creating repo ${options.name} from template ${templateOwner}/${templateRepo}`)
 
     const result = await this.request<{
@@ -161,10 +188,23 @@ export class GitHubService {
 
     if (result.error) {
       log.error(`Failed to create repo: ${result.error}`)
+      fileLog.error('GITHUB', 'Failed to create repository from template', {
+        name: options.name,
+        template: `${templateOwner}/${templateRepo}`,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
 
+    onProgress?.(100, 'Repository created successfully', 'done')
     log.success(`Repository created: ${result.data?.html_url}`)
+    fileLog.info('GITHUB', 'Repository created from template', {
+      name: options.name,
+      fullName: result.data?.full_name,
+      url: result.data?.html_url,
+      duration_ms: Date.now() - startTime
+    })
     return ok({
       success: true,
       repoUrl: result.data?.html_url,
@@ -176,28 +216,42 @@ export class GitHubService {
    * Creates a new repository.
    *
    * @param options - Repository options
+   * @param onProgress - Optional progress callback
    * @returns Result with repository URL and clone URL
    */
   async createRepo(
-    options: IGitHubRepoOptions
+    options: IGitHubRepoOptions,
+    onProgress?: IProgressCallback
   ): Promise<Result<IGitHubRepoResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const startTime = Date.now()
+    onProgress?.(10, 'Initializing repository creation', 'init')
+    fileLog.info('GITHUB', 'Creating repository', {
+      name: options.name,
+      owner: options.owner,
+      private: options.private
+    })
+
+    onProgress?.(25, 'Getting authenticated user', 'auth')
     const userResult = await this.getAuthenticatedUser()
     if (isErr(userResult)) {
+      fileLog.error('GITHUB', 'Failed to get authenticated user', {
+        error: userResult.error.message,
+        duration_ms: Date.now() - startTime
+      })
       return err(userResult.error)
     }
 
     const owner = options.owner || userResult.value
 
     if (!owner) {
+      fileLog.error('GITHUB', 'Could not determine repository owner', {
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: 'Could not determine repository owner' })
     }
 
+    onProgress?.(50, 'Checking account type and creating repository', 'create')
     log.info(`Creating repo ${options.name}`)
-    fileLog.info('GITHUB', 'Creating repository', {
-      name: options.name,
-      owner,
-      private: options.private
-    })
 
     const isOrgResult = await this.isOrganization(owner)
     const isOrg = isOk(isOrgResult) && isOrgResult.value
@@ -221,17 +275,21 @@ export class GitHubService {
       log.error(`Failed to create repo: ${result.error}`)
       fileLog.error('GITHUB', 'Failed to create repository', {
         name: options.name,
+        owner,
         error: result.error,
-        status: result.status
+        status: result.status,
+        duration_ms: Date.now() - startTime
       })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
 
+    onProgress?.(100, 'Repository created successfully', 'done')
     log.success(`Repository created: ${result.data?.html_url}`)
     fileLog.info('GITHUB', 'Repository created', {
       name: options.name,
       fullName: result.data?.full_name,
-      url: result.data?.html_url
+      url: result.data?.html_url,
+      duration_ms: Date.now() - startTime
     })
     return ok({
       success: true,
@@ -246,10 +304,19 @@ export class GitHubService {
    * @returns Result with the username or error
    */
   async getAuthenticatedUser(): Promise<Result<string | undefined, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const startTime = Date.now()
     const result = await this.request<{ login: string }>('/user')
     if (result.error) {
+      fileLog.error('GITHUB', 'Failed to get authenticated user', {
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
+    fileLog.info('GITHUB', 'Authenticated user retrieved', {
+      login: result.data?.login,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data?.login)
   }
 
@@ -260,11 +327,23 @@ export class GitHubService {
    * @returns Result with true if it's an organization
    */
   async isOrganization(name: string): Promise<Result<boolean, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const startTime = Date.now()
     const result = await this.request<{ type: string }>(`/users/${name}`)
     if (result.error) {
+      fileLog.error('GITHUB', 'Failed to check if organization', {
+        name,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.GITHUB_ERROR, message: result.error })
     }
-    return ok(result.data?.type === 'Organization')
+    const isOrg = result.data?.type === 'Organization'
+    fileLog.info('GITHUB', 'Organization check completed', {
+      name,
+      isOrganization: isOrg,
+      duration_ms: Date.now() - startTime
+    })
+    return ok(isOrg)
   }
 
   /**
@@ -275,8 +354,16 @@ export class GitHubService {
    * @returns Result with true if the repository exists
    */
   async repoExists(owner: string, repo: string): Promise<Result<boolean, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
+    const startTime = Date.now()
     const result = await this.request(`/repos/${owner}/${repo}`)
-    return ok(result.status === 200)
+    const exists = result.status === 200
+    fileLog.info('GITHUB', 'Repository existence checked', {
+      owner,
+      repo,
+      exists,
+      duration_ms: Date.now() - startTime
+    })
+    return ok(exists)
   }
 
   /**
@@ -285,14 +372,18 @@ export class GitHubService {
    * @param repoUrl - The repository clone URL
    * @param localPath - Path to the local project
    * @param branch - Branch name to push to
+   * @param onProgress - Optional progress callback
    * @returns Result indicating success or error
    */
   async pushToRepo(
     repoUrl: string,
     localPath: string,
-    branch = 'main'
+    branch = 'main',
+    onProgress?: IProgressCallback
   ): Promise<Result<IGitHubPushResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
-    fileLog.info('GITHUB', 'Pushing to repository', { localPath, branch })
+    const startTime = Date.now()
+    fileLog.info('GITHUB', 'Pushing to repository', { localPath, branch, repoUrl })
+    onProgress?.(0, 'Initializing git repository', 'init')
 
     const result = await tryCatchAsync(async () => {
       const gitInit = Bun.spawn(['git', 'init'], {
@@ -301,6 +392,7 @@ export class GitHubService {
         stderr: 'pipe',
       })
       await gitInit.exited
+      onProgress?.(15, 'Git initialized', 'init')
 
       const gitAdd = Bun.spawn(['git', 'add', '.'], {
         cwd: localPath,
@@ -308,6 +400,7 @@ export class GitHubService {
         stderr: 'pipe',
       })
       await gitAdd.exited
+      onProgress?.(30, 'Files staged', 'stage')
 
       const gitCommit = Bun.spawn(
         ['git', 'commit', '-m', 'Initial commit from mks-bot-father'],
@@ -318,6 +411,7 @@ export class GitHubService {
         }
       )
       await gitCommit.exited
+      onProgress?.(45, 'Changes committed', 'commit')
 
       const gitBranch = Bun.spawn(['git', 'branch', '-M', branch], {
         cwd: localPath,
@@ -325,6 +419,7 @@ export class GitHubService {
         stderr: 'pipe',
       })
       await gitBranch.exited
+      onProgress?.(60, `Branch set to ${branch}`, 'branch')
 
       const gitRemote = Bun.spawn(['git', 'remote', 'add', 'origin', repoUrl], {
         cwd: localPath,
@@ -332,7 +427,9 @@ export class GitHubService {
         stderr: 'pipe',
       })
       await gitRemote.exited
+      onProgress?.(75, 'Remote added', 'remote')
 
+      onProgress?.(85, 'Pushing to GitHub...', 'push')
       const gitPush = Bun.spawn(['git', 'push', '-u', 'origin', branch], {
         cwd: localPath,
         stdout: 'pipe',
@@ -345,8 +442,13 @@ export class GitHubService {
         throw new Error(stderr || 'Failed to push')
       }
 
+      onProgress?.(100, 'Code pushed successfully', 'done')
       log.success('Code pushed to GitHub')
-      fileLog.info('GITHUB', 'Code pushed successfully', { localPath, branch })
+      fileLog.info('GITHUB', 'Code pushed successfully', {
+        localPath,
+        branch,
+        duration_ms: Date.now() - startTime
+      })
       return { success: true } as IGitHubPushResult
     }, AppErrorCode.GITHUB_ERROR)
 
@@ -354,7 +456,8 @@ export class GitHubService {
       fileLog.error('GITHUB', 'Failed to push to repository', {
         localPath,
         branch,
-        error: result.error.message
+        error: result.error.message,
+        duration_ms: Date.now() - startTime
       })
     }
 

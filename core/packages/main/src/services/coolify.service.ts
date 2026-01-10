@@ -15,9 +15,14 @@ import {
   type ICoolifyDeployment,
   type ICoolifyDeployOptions,
   type ICoolifyDeployResult,
+  type ICoolifyDestination,
   type ICoolifyLogs,
   type ICoolifyLogsOptions,
+  type ICoolifyProject,
+  type ICoolifyServer,
+  type ICoolifyTeam,
   type ICoolifyUpdateOptions,
+  type IProgressCallback,
 } from '../types/index.js'
 import { AppErrorCode } from '../types/errors.js'
 
@@ -30,22 +35,7 @@ interface ICoolifyApiResponse<T> {
   data?: T
   error?: string
   status: number
-}
-
-/**
- * Coolify server type.
- */
-export interface ICoolifyServer {
-  uuid: string
-  name: string
-}
-
-/**
- * Coolify destination type.
- */
-export interface ICoolifyDestination {
-  uuid: string
-  name: string
+  durationMs?: number
 }
 
 /**
@@ -76,6 +66,7 @@ export class CoolifyService {
    * @returns Result indicating success or error
    */
   async init(): Promise<Result<void, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     const config = getConfigService()
     this.baseUrl = config.getCoolifyUrl()
     this.token = config.getCoolifyToken()
@@ -83,19 +74,19 @@ export class CoolifyService {
     if (!this.baseUrl) {
       log.error('No Coolify URL configured')
       log.info('Configure with: mbf config set coolify.url <url>')
-      fileLog.error('COOLIFY', 'No Coolify URL configured', { reason: 'not_configured' })
+      fileLog.error('COOLIFY', 'No Coolify URL configured', { reason: 'not_configured', duration_ms: Date.now() - startTime })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'No Coolify URL configured' })
     }
 
     if (!this.token) {
       log.error('No Coolify token configured')
       log.info('Configure with: mbf config set coolify.token <token>')
-      fileLog.error('COOLIFY', 'No Coolify token configured', { reason: 'not_configured' })
+      fileLog.error('COOLIFY', 'No Coolify token configured', { reason: 'not_configured', duration_ms: Date.now() - startTime })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'No Coolify token configured' })
     }
 
     log.debug('Coolify connection configured')
-    fileLog.info('COOLIFY', 'Coolify service initialized', { baseUrl: this.baseUrl })
+    fileLog.info('COOLIFY', 'Coolify service initialized', { baseUrl: this.baseUrl, duration_ms: Date.now() - startTime })
     return ok(undefined)
   }
 
@@ -110,8 +101,10 @@ export class CoolifyService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ICoolifyApiResponse<T>> {
+    const startTime = Date.now()
+
     if (!this.baseUrl || !this.token) {
-      return { error: 'Coolify not configured', status: 0 }
+      return { error: 'Coolify not configured', status: 0, durationMs: Date.now() - startTime }
     }
 
     try {
@@ -127,13 +120,14 @@ export class CoolifyService {
       })
 
       const text = await response.text()
+      const durationMs = Date.now() - startTime
       let data: T | undefined
 
       try {
         data = text ? JSON.parse(text) : undefined
       } catch {
         if (!response.ok) {
-          return { error: text || `HTTP ${response.status}`, status: response.status }
+          return { error: text || `HTTP ${response.status}`, status: response.status, durationMs }
         }
       }
 
@@ -141,13 +135,13 @@ export class CoolifyService {
         const errorMessage =
           (data as { message?: string } | undefined)?.message ||
           `HTTP ${response.status}`
-        return { error: errorMessage, status: response.status }
+        return { error: errorMessage, status: response.status, durationMs }
       }
 
-      return { data, status: response.status }
+      return { data, status: response.status, durationMs }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
-      return { error: message, status: 0 }
+      return { error: message, status: 0, durationMs: Date.now() - startTime }
     }
   }
 
@@ -155,14 +149,18 @@ export class CoolifyService {
    * Deploys an application.
    *
    * @param options - Deployment options
+   * @param onProgress - Optional progress callback (0-100, message, step)
    * @returns Result with deployment info or error
    */
   async deploy(
-    options: ICoolifyDeployOptions
+    options: ICoolifyDeployOptions,
+    onProgress?: IProgressCallback
   ): Promise<Result<ICoolifyDeployResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     if (!options.uuid && !options.tag) {
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'Either uuid or tag is required' })
     }
+
+    onProgress?.(10, 'Initializing deployment', 'init')
 
     log.info(`Deploying application ${options.uuid || options.tag}`)
     fileLog.info('COOLIFY', 'Deploying application', {
@@ -170,6 +168,8 @@ export class CoolifyService {
       tag: options.tag,
       force: options.force
     })
+
+    onProgress?.(30, 'Triggering Coolify deployment', 'trigger')
 
     const result = await this.request<{
       resource_uuid: string
@@ -188,15 +188,19 @@ export class CoolifyService {
       fileLog.error('COOLIFY', 'Deployment failed', {
         uuid: options.uuid,
         tag: options.tag,
-        error: result.error
+        error: result.error,
+        duration_ms: result.durationMs
       })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
+    onProgress?.(100, 'Deployment triggered successfully', 'done')
+
     log.success(`Deployment started: ${result.data?.deployment_uuid}`)
     fileLog.info('COOLIFY', 'Deployment started', {
       deploymentUuid: result.data?.deployment_uuid,
-      resourceUuid: result.data?.resource_uuid
+      resourceUuid: result.data?.resource_uuid,
+      duration_ms: result.durationMs
     })
     return ok({
       success: true,
@@ -214,6 +218,7 @@ export class CoolifyService {
   async createApplication(
     options: ICoolifyAppOptions
   ): Promise<Result<ICoolifyAppResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Creating application ${options.name}`)
     fileLog.info('COOLIFY', 'Creating application', {
       name: options.name,
@@ -244,7 +249,8 @@ export class CoolifyService {
       fileLog.error('COOLIFY', 'Failed to create application', {
         name: options.name,
         error: result.error,
-        status: result.status
+        status: result.status,
+        duration_ms: Date.now() - startTime
       })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
@@ -252,7 +258,8 @@ export class CoolifyService {
     log.success(`Application created: ${result.data?.uuid}`)
     fileLog.info('COOLIFY', 'Application created', {
       name: options.name,
-      uuid: result.data?.uuid
+      uuid: result.data?.uuid,
+      duration_ms: Date.now() - startTime
     })
     return ok({
       success: true,
@@ -271,6 +278,7 @@ export class CoolifyService {
     appUuid: string,
     envVars: Record<string, string>
   ): Promise<Result<void, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Setting environment variables for ${appUuid}`)
     fileLog.info('COOLIFY', 'Setting environment variables', {
       appUuid,
@@ -292,13 +300,14 @@ export class CoolifyService {
       log.error(`Failed to set env vars: ${result.error}`)
       fileLog.error('COOLIFY', 'Failed to set environment variables', {
         appUuid,
-        error: result.error
+        error: result.error,
+        duration_ms: Date.now() - startTime
       })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success('Environment variables set')
-    fileLog.info('COOLIFY', 'Environment variables set', { appUuid })
+    fileLog.info('COOLIFY', 'Environment variables set', { appUuid, duration_ms: Date.now() - startTime })
     return ok(undefined)
   }
 
@@ -311,14 +320,27 @@ export class CoolifyService {
   async getApplicationStatus(
     appUuid: string
   ): Promise<Result<string, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
+    fileLog.info('COOLIFY', 'Get application status', { appUuid })
+
     const result = await this.request<{ status: string }>(
       `/applications/${appUuid}`
     )
 
     if (result.error) {
+      fileLog.error('COOLIFY', 'Get application status failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
+    fileLog.info('COOLIFY', 'Application status retrieved', {
+      appUuid,
+      status: result.data?.status,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data?.status || 'unknown')
   }
 
@@ -328,12 +350,115 @@ export class CoolifyService {
    * @returns Result with servers or error
    */
   async listServers(): Promise<Result<ICoolifyServer[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
+    fileLog.info('COOLIFY', 'List servers')
+
     const result = await this.request<ICoolifyServer[]>('/servers')
 
     if (result.error) {
+      fileLog.error('COOLIFY', 'List servers failed', {
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
+    fileLog.info('COOLIFY', 'Servers listed', {
+      count: result.data?.length,
+      duration_ms: Date.now() - startTime
+    })
+    return ok(result.data || [])
+  }
+
+  /**
+   * Gets details of a specific server.
+   *
+   * @param serverUuid - Server UUID
+   * @returns Result with server details or error
+   */
+  async getServer(
+    serverUuid: string
+  ): Promise<Result<ICoolifyServer, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
+    log.info(`Getting server details for ${serverUuid}`)
+    fileLog.info('COOLIFY', 'Get server', { serverUuid })
+
+    const result = await this.request<ICoolifyServer>(`/servers/${serverUuid}`)
+
+    if (result.error) {
+      log.error(`Failed to get server: ${result.error}`)
+      fileLog.error('COOLIFY', 'Get server failed', {
+        serverUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Server details retrieved: ${serverUuid}`)
+    fileLog.info('COOLIFY', 'Server retrieved', {
+      serverUuid,
+      name: result.data?.name,
+      duration_ms: Date.now() - startTime
+    })
+    return ok(result.data as ICoolifyServer)
+  }
+
+  /**
+   * Lists all projects.
+   *
+   * @returns Result with projects list or error
+   */
+  async listProjects(): Promise<Result<ICoolifyProject[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
+    log.info('Listing projects')
+    fileLog.info('COOLIFY', 'List projects')
+
+    const result = await this.request<ICoolifyProject[]>('/projects')
+
+    if (result.error) {
+      log.error(`Failed to list projects: ${result.error}`)
+      fileLog.error('COOLIFY', 'List projects failed', {
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Listed ${result.data?.length || 0} projects`)
+    fileLog.info('COOLIFY', 'Projects listed', {
+      count: result.data?.length,
+      duration_ms: Date.now() - startTime
+    })
+    return ok(result.data || [])
+  }
+
+  /**
+   * Lists all teams.
+   *
+   * @returns Result with teams list or error
+   */
+  async listTeams(): Promise<Result<ICoolifyTeam[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
+    log.info('Listing teams')
+    fileLog.info('COOLIFY', 'List teams')
+
+    const result = await this.request<ICoolifyTeam[]>('/teams')
+
+    if (result.error) {
+      log.error(`Failed to list teams: ${result.error}`)
+      fileLog.error('COOLIFY', 'List teams failed', {
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
+      return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
+    }
+
+    log.success(`Listed ${result.data?.length || 0} teams`)
+    fileLog.info('COOLIFY', 'Teams listed', {
+      count: result.data?.length,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data || [])
   }
 
@@ -346,14 +471,27 @@ export class CoolifyService {
   async getServerDestinations(
     serverUuid: string
   ): Promise<Result<ICoolifyDestination[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
+    fileLog.info('COOLIFY', 'Get server destinations', { serverUuid })
+
     const result = await this.request<{
       destinations: ICoolifyDestination[]
     }>(`/servers/${serverUuid}`)
 
     if (result.error) {
+      fileLog.error('COOLIFY', 'Get server destinations failed', {
+        serverUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
+    fileLog.info('COOLIFY', 'Server destinations retrieved', {
+      serverUuid,
+      count: result.data?.destinations?.length,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data?.destinations || [])
   }
 
@@ -378,6 +516,7 @@ export class CoolifyService {
     teamId?: string,
     projectId?: string
   ): Promise<Result<ICoolifyApplication[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info('Listing applications')
     fileLog.info('COOLIFY', 'List applications', { teamId, projectId })
 
@@ -393,12 +532,18 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to list applications: ${result.error}`)
-      fileLog.error('COOLIFY', 'List applications failed', { error: result.error })
+      fileLog.error('COOLIFY', 'List applications failed', {
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Listed ${result.data?.length || 0} applications`)
-    fileLog.info('COOLIFY', 'Applications listed', { count: result.data?.length })
+    fileLog.info('COOLIFY', 'Applications listed', {
+      count: result.data?.length,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data || [])
   }
 
@@ -411,6 +556,7 @@ export class CoolifyService {
   async deleteApplication(
     appUuid: string
   ): Promise<Result<ICoolifyDeleteResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Deleting application ${appUuid}`)
     fileLog.info('COOLIFY', 'Delete application', { appUuid })
 
@@ -420,12 +566,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to delete application: ${result.error}`)
-      fileLog.error('COOLIFY', 'Delete application failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Delete application failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application deleted: ${appUuid}`)
-    fileLog.info('COOLIFY', 'Application deleted', { appUuid })
+    fileLog.info('COOLIFY', 'Application deleted', {
+      appUuid,
+      duration_ms: Date.now() - startTime
+    })
     return ok({ success: true, message: 'Application deleted' })
   }
 
@@ -440,6 +593,7 @@ export class CoolifyService {
     appUuid: string,
     options: ICoolifyUpdateOptions
   ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Updating application ${appUuid}`)
     fileLog.info('COOLIFY', 'Update application', { appUuid, options })
 
@@ -460,12 +614,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to update application: ${result.error}`)
-      fileLog.error('COOLIFY', 'Update application failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Update application failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application updated: ${appUuid}`)
-    fileLog.info('COOLIFY', 'Application updated', { appUuid })
+    fileLog.info('COOLIFY', 'Application updated', {
+      appUuid,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data as ICoolifyApplication)
   }
 
@@ -480,6 +641,7 @@ export class CoolifyService {
     appUuid: string,
     options: ICoolifyLogsOptions = {}
   ): Promise<Result<ICoolifyLogs, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Getting logs for application ${appUuid}`)
     fileLog.info('COOLIFY', 'Get application logs', { appUuid, options })
 
@@ -493,12 +655,20 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to get logs: ${result.error}`)
-      fileLog.error('COOLIFY', 'Get logs failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Get logs failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Logs retrieved for application: ${appUuid}`)
-    fileLog.info('COOLIFY', 'Logs retrieved', { appUuid, logCount: result.data?.logs?.length })
+    fileLog.info('COOLIFY', 'Logs retrieved', {
+      appUuid,
+      logCount: result.data?.logs?.length,
+      duration_ms: Date.now() - startTime
+    })
     return ok({
       logs: result.data?.logs || [],
       timestamp: new Date().toISOString(),
@@ -514,6 +684,7 @@ export class CoolifyService {
   async getApplicationDeploymentHistory(
     appUuid: string
   ): Promise<Result<ICoolifyDeployment[], ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Getting deployment history for ${appUuid}`)
     fileLog.info('COOLIFY', 'Get deployment history', { appUuid })
 
@@ -521,12 +692,20 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to get deployment history: ${result.error}`)
-      fileLog.error('COOLIFY', 'Get deployment history failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Get deployment history failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Deployment history retrieved for ${appUuid}`)
-    fileLog.info('COOLIFY', 'Deployment history retrieved', { appUuid, count: result.data?.length })
+    fileLog.info('COOLIFY', 'Deployment history retrieved', {
+      appUuid,
+      count: result.data?.length,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data || [])
   }
 
@@ -539,6 +718,7 @@ export class CoolifyService {
   async startApplication(
     appUuid: string
   ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Starting application ${appUuid}`)
     fileLog.info('COOLIFY', 'Start application', { appUuid })
 
@@ -548,12 +728,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to start application: ${result.error}`)
-      fileLog.error('COOLIFY', 'Start application failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Start application failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application started: ${appUuid}`)
-    fileLog.info('COOLIFY', 'Application started', { appUuid })
+    fileLog.info('COOLIFY', 'Application started', {
+      appUuid,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data as ICoolifyApplication)
   }
 
@@ -566,6 +753,7 @@ export class CoolifyService {
   async stopApplication(
     appUuid: string
   ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Stopping application ${appUuid}`)
     fileLog.info('COOLIFY', 'Stop application', { appUuid })
 
@@ -575,12 +763,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to stop application: ${result.error}`)
-      fileLog.error('COOLIFY', 'Stop application failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Stop application failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application stopped: ${appUuid}`)
-    fileLog.info('COOLIFY', 'Application stopped', { appUuid })
+    fileLog.info('COOLIFY', 'Application stopped', {
+      appUuid,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data as ICoolifyApplication)
   }
 
@@ -593,6 +788,7 @@ export class CoolifyService {
   async restartApplication(
     appUuid: string
   ): Promise<Result<ICoolifyApplication, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
+    const startTime = Date.now()
     log.info(`Restarting application ${appUuid}`)
     fileLog.info('COOLIFY', 'Restart application', { appUuid })
 
@@ -602,12 +798,19 @@ export class CoolifyService {
 
     if (result.error) {
       log.error(`Failed to restart application: ${result.error}`)
-      fileLog.error('COOLIFY', 'Restart application failed', { appUuid, error: result.error })
+      fileLog.error('COOLIFY', 'Restart application failed', {
+        appUuid,
+        error: result.error,
+        duration_ms: Date.now() - startTime
+      })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
     log.success(`Application restarted: ${appUuid}`)
-    fileLog.info('COOLIFY', 'Application restarted', { appUuid })
+    fileLog.info('COOLIFY', 'Application restarted', {
+      appUuid,
+      duration_ms: Date.now() - startTime
+    })
     return ok(result.data as ICoolifyApplication)
   }
 }
@@ -625,3 +828,17 @@ export function getCoolifyService(): CoolifyService {
   }
   return instance
 }
+
+// Re-export types for backward compatibility
+export type {
+  ICoolifyServer,
+  ICoolifyDestination,
+  ICoolifyProject,
+  ICoolifyTeam,
+  ICoolifyApplication,
+  ICoolifyDeployment,
+  ICoolifyAppOptions,
+  ICoolifyDeployOptions,
+  ICoolifyUpdateOptions,
+  ICoolifyLogsOptions,
+} from '../types/index.js'
