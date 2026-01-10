@@ -1,21 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useKeyboard, useRenderer } from '@opentui/react'
 import type { UserQuestion } from '../types.js'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  purple: '#b381c5',
-  magenta: '#ff7edb',
-  cyan: '#36f9f6',
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  red: '#fe4450',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { THEME } from '../theme/colors.js'
 
 interface QuestionModalProps {
   question: UserQuestion
@@ -106,7 +92,6 @@ export const QuestionModal = ({ question, onAnswer, onCancel }: QuestionModalPro
         width: termWidth,
         height: termHeight,
         backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        zIndex: 1000,
       }}
     >
       <box
@@ -149,7 +134,7 @@ export const QuestionModal = ({ question, onAnswer, onCancel }: QuestionModalPro
 
             return (
               <box
-                key={index}
+                key={opt.label}
                 style={{
                   flexDirection: 'column',
                   backgroundColor: isSelected ? THEME.purple : 'transparent',

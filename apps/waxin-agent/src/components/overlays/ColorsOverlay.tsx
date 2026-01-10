@@ -4,23 +4,23 @@
  */
 
 import { processColorPalette, WAXIN_THEME_COLORS } from '../ColorPalette.js'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  purple: '#b381c5',
-  cyan: '#36f9f6',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { useEffect } from 'react'
+import { tuiLogger } from '../../lib/json-logger.js'
+import { THEME } from '../../theme/colors.js'
 
 /**
  * ColorsOverlay - Display the WAXIN color palette
  */
 export function ColorsOverlay() {
   const colors = processColorPalette([...WAXIN_THEME_COLORS])
+
+  // Log when overlay mounts
+  useEffect(() => {
+    tuiLogger.info('Colors Overlay mounted', { colorCount: colors.length })
+    return () => {
+      tuiLogger.info('Colors Overlay unmounted')
+    }
+  }, [colors.length])
 
   return (
     <box style={{ flexDirection: 'column' }}>

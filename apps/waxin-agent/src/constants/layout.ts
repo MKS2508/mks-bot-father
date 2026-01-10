@@ -1,0 +1,54 @@
+/**
+ * Layout constants for WAXIN TUI
+ * Centralized values to avoid magic numbers throughout the codebase
+ */
+
+export const LAYOUT = {
+  // Dimensions
+  PROMPT_WIDTH: '70%',
+  PROMPT_WIDTH_FULLSCREEN: '100%',
+  TEXTAREA_HEIGHT: 4,
+  PADDING: 1,
+  GAP: 1,
+  MARGIN_TOP: 1,
+  MARGIN_BOTTOM: 1,
+
+  // Dialog/Modal
+  MODAL_WIDTH: 60,
+  MODAL_PADDING: 1,
+  MODAL_MAX_WIDTH: 60,
+  MODAL_MIN_HEIGHT: 10,
+
+  // Components
+  STATUS_BAR_HEIGHT: 1,
+  FOOTER_HEIGHT: 1,
+  HEADER_HEIGHT: 3,
+
+  // Messages
+  MESSAGE_MAX_WIDTH: '70%',
+  MESSAGE_MIN_HEIGHT: '60%',
+
+  // Images
+  BANNER_IMAGE_WIDTH_PERCENT: 0.35,
+  BANNER_IMAGE_HEIGHT_PERCENT: 0.5,
+  FLOATING_IMAGE_WIDTH: 25,
+  FLOATING_IMAGE_HEIGHT: 10,
+
+  // Splash
+  SPLASH_DURATION_MS: 5000,
+  SPLASH_IMAGE_WIDTH_PERCENT: 85,
+  SPLASH_IMAGE_HEIGHT_PERCENT: 70,
+
+  // Timings
+  THINKING_WORD_INTERVAL_MS: 2000,
+  THINKING_FRAME_INTERVAL_MS: 80,
+  STATS_UPDATE_INTERVAL_MS: 500,
+
+  // Keyboard
+  SHORTCUT_SEQUENCE_TIMEOUT_MS: 1000,
+
+  // Scroll
+  SCROLL_BUTTONS: true,
+} as const
+
+export type LayoutKey = keyof typeof LAYOUT

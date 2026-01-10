@@ -6,30 +6,7 @@
 import { useRenderer } from '@opentui/react'
 import type { OverlayConfig } from './overlays/OverlayTypes.js'
 import { calculatePosition } from './overlays/OverlayTypes.js'
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// THEME
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-
-  purple: '#b381c5',
-  magenta: '#ff7edb',
-  cyan: '#36f9f6',
-  blue: '#6e95ff',
-
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  orange: '#ff8b39',
-  red: '#fe4450',
-
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { THEME } from '../theme/colors.js'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -82,23 +59,21 @@ export function PositionedOverlay({
     ? 'rgba(26, 26, 46, 0.85)'
     : THEME.bgPanel
 
-  // Build style object
-  const style: Record<string, any> = {
-    position: 'absolute',
+  // Build style object with proper type
+  const style = {
+    position: 'absolute' as const,
     width: pos.width,
     height: pos.height,
     backgroundColor: bgColor,
     border: true,
     borderColor,
-    borderStyle: 'rounded',
-    flexDirection: 'column',
+    borderStyle: 'rounded' as const,
+    flexDirection: 'column' as const,
+    ...(pos.top !== undefined && { top: pos.top }),
+    ...(pos.left !== undefined && { left: pos.left }),
+    ...(pos.right !== undefined && { right: pos.right }),
+    ...(pos.bottom !== undefined && { bottom: pos.bottom }),
   }
-
-  // Add position properties
-  if (pos.top !== undefined) style.top = pos.top
-  if (pos.left !== undefined) style.left = pos.left
-  if (pos.right !== undefined) style.right = pos.right
-  if (pos.bottom !== undefined) style.bottom = pos.bottom
 
   return (
     <box style={style}>
@@ -123,7 +98,6 @@ export function PositionedOverlay({
         style={{
           flexGrow: 1,
           padding: 1,
-          overflow: 'hidden',
         }}
       >
         {children}

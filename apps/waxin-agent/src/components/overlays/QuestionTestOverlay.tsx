@@ -4,7 +4,9 @@
  */
 
 import { useKeyboard } from '@opentui/react'
+import { useEffect } from 'react'
 import type { UserQuestion } from '../../types.js'
+import { tuiLogger } from '../../lib/json-logger.js'
 
 const THEME = {
   bg: '#262335',
@@ -59,6 +61,14 @@ const MULTI_QUESTION: UserQuestion = {
  */
 export function QuestionTestOverlay({ type, onLaunch, onClose }: QuestionTestOverlayProps) {
   const question = type === 'single' ? SINGLE_QUESTION : MULTI_QUESTION
+
+  // Log when overlay mounts
+  useEffect(() => {
+    tuiLogger.info('Question Test Overlay mounted', { type, question: question.question })
+    return () => {
+      tuiLogger.info('Question Test Overlay unmounted')
+    }
+  }, [type, question.question])
 
   useKeyboard((key) => {
     if (key.name === 'escape') {

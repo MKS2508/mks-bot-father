@@ -3,22 +3,8 @@
  * Styled with borders, colors, and alignment based on message role.
  */
 
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  purple: '#b381c5',
-  magenta: '#ff7edb',
-  cyan: '#36f9f6',
-  blue: '#6e95ff',
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  orange: '#ff8b39',
-  red: '#fe4450',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { THEME } from '../theme/colors.js'
+import { formatTimestamp } from '../utils/format.js'
 
 interface Message {
   role: 'user' | 'assistant' | 'tool'
@@ -28,13 +14,6 @@ interface Message {
 
 interface ChatBubbleProps {
   message: Message
-}
-
-function formatTimestamp(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, '0')
-  const minutes = date.getMinutes().toString().padStart(2, '0')
-  const seconds = date.getSeconds().toString().padStart(2, '0')
-  return `${hours}:${minutes}:${seconds}`
 }
 
 export const ChatBubble = ({ message }: ChatBubbleProps) => {

@@ -1,16 +1,20 @@
 /**
  * useAgent hook - Agent lifecycle management.
  *
- * Provides agent execution with state tracking and callbacks.
+ * Now uses Zustand store for proper state management instead of module globals.
+ * This is a thin wrapper that initializes the store on first use.
  */
 
-import { AgentBridge, type AgentCallbacks, type AgentResult, type AgentOptions } from '../lib/agent-bridge.js'
+import { useEffect } from 'react'
+import { useAgentStore } from '../stores/agentStore.js'
+import type { AgentCallbacks, AgentOptions, AgentResult } from '../types.js'
 import { agentLogger } from '../lib/logger.js'
 import { log } from '../lib/json-logger.js'
 import type { AgentStats } from '../types.js'
 
 /**
  * Agent hook state and methods.
+ * Matches the original interface for backward compatibility.
  */
 export interface UseAgentState {
   execute: (prompt: string, options?: AgentOptions, callbacks?: AgentCallbacks) => Promise<AgentResult>
@@ -21,27 +25,25 @@ export interface UseAgentState {
 }
 
 /**
- * Current execution state.
- */
-let isExecuting = false
-let currentBridge: AgentBridge | null = null
-
-/**
  * Hook for agent lifecycle management.
+ *
+ * Uses Zustand store instead of module-level state.
+ * Initializes the store on first mount.
  *
  * @returns Agent state and methods
  */
 export function useAgent(): UseAgentState {
-  if (!currentBridge) {
-    currentBridge = new AgentBridge()
-  }
+  // Initialize store on mount
+  useEffect(() => {
+    useAgentStore.getState().initialize()
+  }, [])
 
   const execute = async (
     prompt: string,
     options: AgentOptions = {},
     callbacks: AgentCallbacks = {}
   ): Promise<AgentResult> => {
-    if (isExecuting) {
+    if (useAgentStore.getState().isExecuting) {
       agentLogger.warn('Agent already executing, ignoring request')
       log.warn('AGENT', 'Execution blocked - already executing', {
         promptLength: prompt.length,
@@ -50,7 +52,6 @@ export function useAgent(): UseAgentState {
       throw new Error('Agent already executing')
     }
 
-    isExecuting = true
     agentLogger.info(`User prompt: "${prompt.slice(0, 100)}..."`)
     log.info('AGENT', 'useAgent.execute() called', {
       promptLength: prompt.length,
@@ -62,7 +63,7 @@ export function useAgent(): UseAgentState {
     const startTime = Date.now()
 
     try {
-      const result = await currentBridge!.execute(prompt, options, callbacks)
+      const result = await useAgentStore.getState().execute(prompt, options, callbacks)
       log.info('AGENT', 'useAgent.execute() completed', {
         durationMs: Date.now() - startTime,
         sessionId: result.sessionId,
@@ -81,26 +82,24 @@ export function useAgent(): UseAgentState {
         durationMs: Date.now() - startTime
       })
       throw error
-    } finally {
-      isExecuting = false
     }
   }
 
   const getStats = (): AgentStats | null => {
-    return currentBridge!.getStats()
+    return useAgentStore.getState().getStats()
   }
 
   const getSessionId = (): string => {
-    return currentBridge!.getSessionId()
+    return useAgentStore.getState().getSessionId()
   }
 
   const clear = (): void => {
     log.info('AGENT', 'useAgent.clear() called')
-    currentBridge!.clear()
+    useAgentStore.getState().clear()
   }
 
   const isCurrentlyExecuting = (): boolean => {
-    return isExecuting
+    return useAgentStore.getState().isExecuting
   }
 
   return {
@@ -114,8 +113,8 @@ export function useAgent(): UseAgentState {
 
 /**
  * Reset the agent bridge (useful for testing).
+ * Now resets the Zustand store state.
  */
 export function resetAgentBridge(): void {
-  currentBridge = null
-  isExecuting = false
+  useAgentStore.getState().clear()
 }

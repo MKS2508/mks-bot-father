@@ -105,7 +105,8 @@ export class AgentBridge {
         toolCalls: [],
         errors: [errorMsg],
         usage: { inputTokens: 0, outputTokens: 0, totalCostUsd: 0 },
-        durationMs: Date.now() - startTime
+        durationMs: Date.now() - startTime,
+        permissionDenials: []
       }
 
       this.currentResult = fallbackResult

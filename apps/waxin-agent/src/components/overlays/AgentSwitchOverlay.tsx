@@ -4,19 +4,9 @@
  */
 
 import { useKeyboard } from '@opentui/react'
-import { useState } from 'react'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  purple: '#b381c5',
-  cyan: '#36f9f6',
-  green: '#72f1b8',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { useState, useEffect } from 'react'
+import { tuiLogger } from '../../lib/json-logger.js'
+import { THEME } from '../../theme/colors.js'
 
 // Available agents (from useAgent hook)
 const AGENTS = [
@@ -42,6 +32,14 @@ interface AgentSwitchOverlayProps {
  */
 export function AgentSwitchOverlay({ currentAgent = 'claude', onSwitch, onClose }: AgentSwitchOverlayProps) {
   const [selectedIndex, setSelectedIndex] = useState(0)
+
+  // Log when overlay mounts
+  useEffect(() => {
+    tuiLogger.info('Agent Switch Overlay mounted', { currentAgent, agentCount: AGENTS.length })
+    return () => {
+      tuiLogger.info('Agent Switch Overlay unmounted')
+    }
+  }, [currentAgent])
 
   useKeyboard((key) => {
     if (key.name === 'escape') {

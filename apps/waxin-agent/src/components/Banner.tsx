@@ -10,6 +10,7 @@ import {
 import type { BannerConfig } from '../types.js'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
+import { THEME } from '../theme/colors.js'
 
 declare module '@opentui/react' {
   interface OpenTUIComponents {
@@ -20,14 +21,6 @@ declare module '@opentui/react' {
 
 extend({ 'terminal-gif': GifImageRenderable })
 extend({ 'terminal-image': ImageRenderable })
-
-const THEME = {
-  purple: '#b381c5',
-  magenta: '#ff7edb',
-  cyan: '#36f9f6',
-  text: '#ffffff',
-  textDim: '#848bbd',
-} as const
 
 const ASCII_BANNER_COMPACT = [
   '██╗    ██╗ █████╗ ██╗  ██╗██╗███╗   ██╗',

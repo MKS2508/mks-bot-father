@@ -5,30 +5,12 @@
 
 import { globalTracker } from '../../lib/performance-tracker.js'
 import { useState, useEffect } from 'react'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  orange: '#ff8b39',
-  cyan: '#36f9f6',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { tuiLogger } from '../../lib/json-logger.js'
+import { THEME } from '../../theme/colors.js'
+import { formatDuration, formatMemory } from '../../utils/format.js'
 
 interface PerformanceOverlayProps {
   onClose?: () => void
-}
-
-/**
- * Format duration in ms to human readable
- */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms.toFixed(0)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
 }
 
 /**
@@ -43,6 +25,17 @@ function formatDuration(ms: number): string {
 export function PerformanceOverlay({ onClose: _onClose }: PerformanceOverlayProps) {
   const [metrics, setMetrics] = useState(globalTracker.getMetrics())
   const [memory, setMemory] = useState(globalTracker.getMemoryStats())
+
+  // Log when overlay mounts
+  useEffect(() => {
+    tuiLogger.info('Performance Overlay mounted', {
+      totalMs: metrics.total,
+      memoryMB: memory.heapUsedMB,
+    })
+    return () => {
+      tuiLogger.info('Performance Overlay unmounted')
+    }
+  }, [])
 
   // Update metrics every 500ms
   useEffect(() => {
@@ -153,7 +146,7 @@ export function PerformanceOverlay({ onClose: _onClose }: PerformanceOverlayProp
           {'Memory:'}
         </text>
         <text style={{ fg: THEME.cyan }}>
-          {`${memory.heapUsedMB}MB / ${memory.heapTotalMB}MB`}
+          {formatMemory(memory.heapUsedMB)} / {formatMemory(memory.heapTotalMB)}
         </text>
       </box>
 
@@ -164,7 +157,7 @@ export function PerformanceOverlay({ onClose: _onClose }: PerformanceOverlayProp
             {'Buffers:'}
           </text>
           <text style={{ fg: THEME.textDim }}>
-            {`${memory.arrayBuffersMB}MB`}
+            {formatMemory(memory.arrayBuffersMB)}
           </text>
         </box>
       )}

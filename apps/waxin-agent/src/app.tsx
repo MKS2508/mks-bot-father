@@ -7,7 +7,7 @@ import { createCliRenderer, type TextareaRenderable } from '@opentui/core'
 import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useAgent } from './hooks/useAgent.js'
-import { log } from './lib/json-logger.js'
+import { log, tuiLogger } from './lib/json-logger.js'
 import { getStats, updateStats, formatTokens, formatCost } from './hooks/useStats.js'
 import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header, StatsBarMinimal, PositionedOverlay, DEFAULT_OVERLAY_CONFIGS, getOverlayComponent, hasOverlay } from './components/index.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
@@ -19,36 +19,10 @@ import { readFileSync } from 'fs'
 import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker, ShortcutCategory, formatShortcutKeysWithSequences } from './shortcuts.js'
 import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
 import type { OverlayConfig } from './components/overlays/OverlayTypes.js'
+import { THEME } from './theme/colors.js'
 
 const MODE = process.env.MODE || 'DEBUG'
 const SHOW_HEADER = MODE === 'DEBUG'
-
-// Global callback for mouse clicks - registered by App component
-let onMouseClickCallback: (() => void) | null = null
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SYNTHWAVE84 THEME
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-
-  purple: '#b381c5',
-  magenta: '#ff7edb',
-  cyan: '#36f9f6',
-  blue: '#6e95ff',
-
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  orange: '#ff8b39',
-  red: '#fe4450',
-
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -77,6 +51,34 @@ function getNextAgent(current: AgentType): AgentType {
   const currentIndex = AGENTS.findIndex(a => a.type === current)
   const nextIndex = (currentIndex + 1) % AGENTS.length
   return AGENTS[nextIndex].type
+}
+
+/**
+ * Get agent options based on agent type.
+ * Maps UI agent types to SDK options.
+ */
+function getAgentOptions(agentType: AgentType): import('./lib/agent-bridge.js').AgentOptions {
+  switch (agentType) {
+    case 'plan':
+      return {
+        permissionMode: 'default',
+        model: 'claude-sonnet-4-5',
+        maxBudgetUsd: 5.0
+      }
+    case 'code':
+      return {
+        permissionMode: 'acceptEdits',
+        model: 'claude-sonnet-4-5',
+        maxBudgetUsd: 10.0
+      }
+    case 'build':
+    default:
+      return {
+        permissionMode: 'acceptEdits',
+        model: 'claude-sonnet-4-5',
+        maxBudgetUsd: 10.0
+      }
+  }
 }
 
 // Custom keybindings for textarea: Enter = submit, Shift+Enter = newline
@@ -126,39 +128,64 @@ function HelpDialogContent({ onShowOverlay, onDirectAction }: HelpDialogContentP
             {shortcuts.map((shortcut, i) => {
               // Non-clickable: TOGGLE_HELP, CLOSE_HELP
               const isClickable = shortcut.id !== Shortcut.TOGGLE_HELP && shortcut.id !== Shortcut.CLOSE_HELP
+              const hasOverlayComp = hasOverlay(shortcut.id)
 
               return (
                 <box
                   key={i}
                   style={{
-                    flexDirection: 'row',
-                    gap: 2,
-                    paddingLeft: 1,
-                    paddingRight: 1,
+                    flexDirection: 'column',
+                    marginBottom: 1,
+                    padding: 1,
+                    backgroundColor: isClickable ? (hasOverlayComp ? '#2a2139' : '#262335') : undefined,
+                    border: isClickable ? true : undefined,
+                    borderColor: hasOverlayComp ? THEME.purple : THEME.bgPanel,
+                    borderStyle: 'single',
                   }}
                   onMouseUp={isClickable ? () => {
+                    // Log click event
+                    tuiLogger.info('Help option clicked', {
+                      shortcut: shortcut.id,
+                      description: shortcut.description,
+                      hasOverlay: hasOverlayComp,
+                    })
                     // Check if this shortcut has an overlay
-                    if (hasOverlay(shortcut.id)) {
+                    if (hasOverlayComp) {
                       onShowOverlay(shortcut.id)
                     } else {
                       onDirectAction(shortcut.id)
                     }
                   } : undefined}
                 >
-                  <text style={{
-                    fg: THEME.cyan as any,
-                    width: 20,
-                  }}>
-                    {formatShortcutKeysWithSequences(shortcut)}
-                  </text>
-                  <text style={{
-                    fg: THEME.textDim as any,
-                  }}>
-                    {shortcut.description}
-                  </text>
-                  {isClickable && (
-                    <text style={{ fg: THEME.green as any }}>
-                      {' [click]'}
+                  {/* Shortcut name with keyboard hint */}
+                  <box style={{ flexDirection: 'row', gap: 2 }}>
+                    <text style={{
+                      fg: THEME.cyan as any,
+                      width: 20,
+                    }}>
+                      {formatShortcutKeysWithSequences(shortcut)}
+                    </text>
+
+                    {/* Description */}
+                    <text style={{
+                      fg: THEME.text as any,
+                      flexGrow: 1,
+                    }}>
+                      {shortcut.description}
+                    </text>
+
+                    {/* Click indicator */}
+                    {isClickable && (
+                      <text style={{ fg: hasOverlayComp ? THEME.magenta : THEME.green as any }}>
+                        {hasOverlayComp ? '[→]' : '[▶]'}
+                      </text>
+                    )}
+                  </box>
+
+                  {/* Additional hint for overlay items */}
+                  {isClickable && hasOverlayComp && (
+                    <text style={{ fg: THEME.textDim as any }}>
+                      {' Opens overlay window'}
                     </text>
                   )}
                 </box>
@@ -170,7 +197,13 @@ function HelpDialogContent({ onShowOverlay, onDirectAction }: HelpDialogContentP
 
       <box style={{ marginTop: 1, flexDirection: 'row', gap: 2 }}>
         <text style={{ fg: THEME.textMuted as any }}>
-          Click any [click] option or press Esc to close
+          Click any option to open
+        </text>
+        <text style={{ fg: THEME.magenta as any }}>
+          {'→'}
+        </text>
+        <text style={{ fg: THEME.textMuted as any }}>
+          {' overlay or press Esc to close'}
         </text>
       </box>
     </box>
@@ -305,19 +338,23 @@ const AppContent = () => {
     }
   }, [dialog, renderer, showQuestion])
 
+  // Declare showHelpDialog first with a ref-based approach to avoid circular dependency
+  const showHelpDialogRef = useRef<(() => void) | null>(null)
+
   // Function to show positioned overlay for a shortcut
   const showOverlay = useCallback((shortcutId: Shortcut) => {
+    tuiLogger.info('Opening overlay', { shortcutId })
+
     const OverlayComponent = getOverlayComponent(shortcutId)
     if (!OverlayComponent) {
-      log.warn('TUI', 'No overlay component for shortcut', { shortcutId })
-      // Fallback to direct execution
+      tuiLogger.warn('No overlay component for shortcut, falling back to direct execution', { shortcutId })
       executeShortcut(shortcutId)
       return
     }
 
     const config = DEFAULT_OVERLAY_CONFIGS[shortcutId] as OverlayConfig | undefined
     if (!config) {
-      log.warn('TUI', 'No overlay config for shortcut', { shortcutId })
+      tuiLogger.warn('No overlay config for shortcut, falling back to direct execution', { shortcutId })
       executeShortcut(shortcutId)
       return
     }
@@ -334,26 +371,23 @@ const AppContent = () => {
     }
     const title = titles[shortcutId]
 
+    tuiLogger.info('Showing overlay dialog', { shortcutId, title, position: config.position })
+
     dialog.show({
       content: () => {
-        // Helper function to render the overlay component
-        const renderOverlay = () => {
-          const Component = OverlayComponent
-          // Use createElement instead of JSX for type compatibility
-          return React.createElement(Component as any, {
-            onClose: () => {
-              dialog.close()
-              showHelpDialog()
-            }
-          })
-        }
-
+        const Component = OverlayComponent
         return (
           <PositionedOverlay
             config={config}
             title={title}
           >
-            {renderOverlay()}
+            {React.createElement(Component as any, {
+              onClose: () => {
+                tuiLogger.info('Overlay closed, reopening help', { shortcutId })
+                dialog.close()
+                showHelpDialogRef.current?.()
+              }
+            })}
           </PositionedOverlay>
         )
       },
@@ -366,21 +400,24 @@ const AppContent = () => {
         padding: 0,
       },
     })
-    log.info('TUI', 'Overlay opened', { shortcutId })
   }, [dialog, executeShortcut])
 
-  // Function to show help dialog (renamed from showHelpDialogWithOverlay)
+  // Function to show help dialog
   const showHelpDialog = useCallback(() => {
     dialog.show({
       content: () => (
         <HelpDialogContent
           onShowOverlay={(shortcutId) => {
-            // Close help and show overlay
+            tuiLogger.info('Help dialog: overlay option clicked', { shortcutId })
+            // Close help dialog first, then show overlay
             dialog.close()
-            // Use setTimeout to avoid circular dependency
-            setTimeout(() => showOverlay(shortcutId), 0)
+            // Small delay to ensure dialog state updates
+            setTimeout(() => {
+              showOverlay(shortcutId)
+            }, 10)
           }}
           onDirectAction={(shortcutId) => {
+            tuiLogger.info('Help dialog: direct action clicked', { shortcutId })
             // Execute action directly and close help
             dialog.close()
             executeShortcut(shortcutId)
@@ -396,8 +433,11 @@ const AppContent = () => {
         padding: 2,
       },
     })
-    log.info('TUI', 'Help dialog opened')
+    tuiLogger.info('Help dialog opened')
   }, [dialog, executeShortcut, showOverlay])
+
+  // Store the ref after declaration
+  showHelpDialogRef.current = showHelpDialog
 
   // Load WAXIN text
   useEffect(() => {
@@ -420,9 +460,17 @@ const AppContent = () => {
       log.info('TUI', `Mouse click: Textarea focus ${!textareaFocused ? 'enabled' : 'disabled'}`)
     }
 
-    onMouseClickCallback = handleMouseClick
+    // Register callback with proper cleanup
+    const setCallback = (globalThis as any).__setMouseClickCallback
+    if (setCallback) {
+      setCallback(handleMouseClick)
+    }
+
     return () => {
-      onMouseClickCallback = null
+      // Cleanup: remove callback when component unmounts
+      if (setCallback) {
+        setCallback(null)
+      }
     }
   }, [textareaFocused])
 
@@ -536,9 +584,18 @@ const AppContent = () => {
       try {
         log.debug('AGENT', 'Calling agent.execute()', { promptLength: text.length })
 
+        // Get options based on selected agent type
+        const agentOptions = getAgentOptions(currentAgent)
+        log.info('AGENT', 'Using agent options', {
+          agentType: currentAgent,
+          model: agentOptions.model,
+          permissionMode: agentOptions.permissionMode,
+          maxBudgetUsd: agentOptions.maxBudgetUsd
+        })
+
         const result = await agent.execute(
           text,
-          {},
+          agentOptions,
           {
             onThinking: (thinkingText: string) => {
               log.debug('AGENT', 'Thinking text received', {
@@ -688,7 +745,8 @@ const AppContent = () => {
   // ─────────────────────────────────────────────────────────────────────────────
 
   const statusBadge = isStreaming ? '◓' : isExecuting ? '◐' : '●'
-  const modelBadge = 'claude-sonnet'
+  const currentOptions = getAgentOptions(currentAgent)
+  const modelBadge = currentOptions.model?.replace('claude-', '') || 'sonnet-4-5'
   const statsBadge = stats
     ? `${formatTokens(stats.totalTokens)} tk · ${formatCost(stats.totalCostUsd)}`
     : ''
@@ -732,7 +790,7 @@ const AppContent = () => {
         <box style={{ flexDirection: 'row', width: '100%' }}>
           <text style={{ fg: THEME.magenta }}>▎ </text>
           <textarea
-            ref={(r: TextareaRenderable | null) => { textareaRef.current = r }}
+            ref={textareaRef}
             initialValue=""
             placeholder='Dime algo waxin... Puedes listar tus bots, crear nuevos, o simplemente joder'
             onSubmit={handleTextareaSubmit}
@@ -835,6 +893,7 @@ const AppContent = () => {
           },
         },
       }}
+      scrollY={true}
       focused={!isExecuting}
     >
       {messages.map((msg) => (
@@ -1094,11 +1153,20 @@ export async function startTUI(): Promise<void> {
   root.render(<App />)
 
   // Global mouse handler - click anywhere to toggle textarea focus
-  renderer.root.onMouse = (event: any) => {
-    if (event.type === 'down' && onMouseClickCallback) {
-      onMouseClickCallback()
+  // Uses a ref-based callback pattern for proper cleanup
+  let mouseClickCallback: (() => void) | null = null
+  const setMouseClickCallback = (cb: (() => void) | null) => {
+    mouseClickCallback = cb
+  }
+
+  renderer.root.onMouse = (event: { type: string }) => {
+    if (event.type === 'down' && mouseClickCallback) {
+      mouseClickCallback()
     }
   }
+
+  // Store setter globally for component to use
+  ;(globalThis as any).__setMouseClickCallback = setMouseClickCallback
 
   log.info('TUI', 'TUI rendered and ready')
 }

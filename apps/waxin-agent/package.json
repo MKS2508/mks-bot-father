@@ -40,6 +40,7 @@
     "opentui-spinner": "^0.0.6",
     "react": "^19.0.0",
     "react-reconciler": "^0.32.0",
-    "terminal-link": "^5.0.0"
+    "terminal-link": "^5.0.0",
+    "zustand": "^5.0.9"
   }
 }

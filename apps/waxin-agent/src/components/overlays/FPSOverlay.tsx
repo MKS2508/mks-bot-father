@@ -4,19 +4,10 @@
  */
 
 import { useFPSMonitor } from '../FPSMonitor.js'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  red: '#fe4450',
-  cyan: '#36f9f6',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { useEffect } from 'react'
+import { tuiLogger } from '../../lib/json-logger.js'
+import { THEME } from '../../theme/colors.js'
+import { formatMemory } from '../../utils/format.js'
 
 interface FPSOverlayProps {
   onClose?: () => void
@@ -29,14 +20,6 @@ function getFPSColor(fps: number): string {
   if (fps >= 50) return THEME.green
   if (fps >= 30) return THEME.yellow
   return THEME.red
-}
-
-/**
- * Format memory with MB suffix
- */
-function formatMemory(mb: number): string {
-  if (mb < 1000) return `${mb}MB`
-  return `${(mb / 1024).toFixed(1)}GB`
 }
 
 /**
@@ -53,6 +36,14 @@ export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
     updateInterval: 500,
     frameBufferSize: 300,
   })
+
+  // Log when overlay mounts
+  useEffect(() => {
+    tuiLogger.info('FPS Overlay mounted', { fps: stats.fps })
+    return () => {
+      tuiLogger.info('FPS Overlay unmounted')
+    }
+  }, [])
 
   const fpsColor = getFPSColor(stats.fps)
 

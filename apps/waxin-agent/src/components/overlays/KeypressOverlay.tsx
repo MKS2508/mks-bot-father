@@ -5,20 +5,10 @@
 
 import { useKeypressDebug } from '../KeypressDebug.js'
 import { useKeyboard } from '@opentui/react'
-import { useState } from 'react'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  purple: '#b381c5',
-  cyan: '#36f9f6',
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { useState, useEffect } from 'react'
+import { tuiLogger } from '../../lib/json-logger.js'
+import { THEME } from '../../theme/colors.js'
+import { getExportFilename } from '../../utils/format.js'
 
 interface KeypressOverlayProps {
   onClose?: () => void
@@ -46,10 +36,18 @@ export function KeypressOverlay({ onClose }: KeypressOverlayProps) {
       // For now, just log to console
       // In a real implementation, this would write to a file
       console.log(`Exporting ${events.length} events`)
-      const filename = getExportFilename()
+      const filename = getExportFilename('keypress-debug')
       console.log(`Filename: ${filename}`)
     },
   })
+
+  // Log when overlay mounts
+  useEffect(() => {
+    tuiLogger.info('Keypress Overlay mounted', { maxEvents: 50 })
+    return () => {
+      tuiLogger.info('Keypress Overlay unmounted')
+    }
+  }, [])
 
   // Handle keyboard shortcuts specific to overlay
   useKeyboard((key) => {
@@ -103,7 +101,6 @@ export function KeypressOverlay({ onClose }: KeypressOverlayProps) {
         <box
           style={{
             flexDirection: 'column',
-            overflow: 'hidden',
             flexGrow: 1,
           }}
         >
@@ -130,7 +127,7 @@ export function KeypressOverlay({ onClose }: KeypressOverlayProps) {
 /**
  * Format a single event for display
  */
-function formatEventLine(event: any): string {
+function formatEventLine(event: { type: string; event?: unknown }): string {
   const typeIcons: Record<string, string> = {
     keypress: '↓',
     keyrelease: '↑',
@@ -141,8 +138,8 @@ function formatEventLine(event: any): string {
   const icon = typeIcons[event.type] || '•'
   const typeUpper = event.type.toUpperCase()
 
-  if (event.event && 'name' in event.event) {
-    const evt = event.event
+  if (event.event && typeof event.event === 'object' && 'name' in event.event) {
+    const evt = event.event as { name?: string; ctrl?: boolean; meta?: boolean; shift?: boolean; option?: boolean; sequence?: string }
     const modifiers: string[] = []
     if (evt.ctrl) modifiers.push('Ctrl')
     if (evt.meta) modifiers.push('Meta')
@@ -156,12 +153,4 @@ function formatEventLine(event: any): string {
   }
 
   return `${icon} ${typeUpper}: ${JSON.stringify(event.event)}`
-}
-
-/**
- * Generate export filename
- */
-function getExportFilename(): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  return `keypress-debug-${timestamp}.json`
 }

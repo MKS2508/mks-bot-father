@@ -3,48 +3,44 @@
  * Rotating words with animated dots.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SPINNER_WORDS } from '../types.js'
-
-const THEME = {
-  bg: '#262335',
-  bgDark: '#1a1a2e',
-  bgPanel: '#2a2139',
-  purple: '#b381c5',
-  magenta: '#ff7edb',
-  cyan: '#36f9f6',
-  blue: '#6e95ff',
-  green: '#72f1b8',
-  yellow: '#fede5d',
-  orange: '#ff8b39',
-  red: '#fe4450',
-  text: '#ffffff',
-  textDim: '#848bbd',
-  textMuted: '#495495'
-} as const
+import { THEME } from '../theme/colors.js'
+import { LAYOUT } from '../constants/layout.js'
 
 interface ThinkingIndicatorProps {
   isStreaming?: boolean
 }
 
-const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const
+const SPINNER_FRAME_COUNT = SPINNER_FRAMES.length
 
 export const ThinkingIndicator = ({ isStreaming = false }: ThinkingIndicatorProps) => {
   const [wordIndex, setWordIndex] = useState(0)
   const [frameIndex, setFrameIndex] = useState(0)
 
-  useEffect(() => {
-    const wordInterval = setInterval(() => {
-      setWordIndex(i => i + 1)
-    }, 2000)
+  // Use refs to track interval state for proper cleanup
+  const wordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-    const frameInterval = setInterval(() => {
-      setFrameIndex(i => (i + 1) % SPINNER_FRAMES.length)
-    }, 80)
+  useEffect(() => {
+    // Clean up any existing intervals first
+    if (wordIntervalRef.current) clearInterval(wordIntervalRef.current)
+    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
+
+    // Word rotation interval
+    wordIntervalRef.current = setInterval(() => {
+      setWordIndex(prev => (prev + 1) % SPINNER_WORDS.length)
+    }, LAYOUT.THINKING_WORD_INTERVAL_MS)
+
+    // Frame animation interval
+    frameIntervalRef.current = setInterval(() => {
+      setFrameIndex(prev => (prev + 1) % SPINNER_FRAME_COUNT)
+    }, LAYOUT.THINKING_FRAME_INTERVAL_MS)
 
     return () => {
-      clearInterval(wordInterval)
-      clearInterval(frameInterval)
+      if (wordIntervalRef.current) clearInterval(wordIntervalRef.current)
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current)
     }
   }, [])
 
