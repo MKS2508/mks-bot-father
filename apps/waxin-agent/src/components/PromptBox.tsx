@@ -96,6 +96,12 @@ export function PromptBox({
             {currentAgentInfo?.label ?? 'Build'}
           </text>
           <text style={{ fg: THEME.textDim }}> · {modelBadge}</text>
+          {isExecuting && (
+            <>
+              <text style={{ fg: THEME.yellow }}> ◐ </text>
+              <text style={{ fg: THEME.yellow }}>ejecutando...</text>
+            </>
+          )}
           {statsBadge && (
             <text style={{ fg: THEME.textMuted }}> · {statsBadge}</text>
           )}
