@@ -204,10 +204,12 @@ describe('logger', () => {
       expect(parsed.data.preview.length).toBe(200)
     })
 
-    it('creates log directory if missing', () => {
+    it('creates log directory if missing', async () => {
+      vi.resetModules()
       mockFs.existsSync.mockReturnValue(false)
 
-      logger.info('Test')
+      const { logger: freshLogger } = await import('../logger.js')
+      freshLogger.info('Test')
 
       expect(mockFs.mkdirSync).toHaveBeenCalledTimes(1)
       const dirPath = mockFs.mkdirSync.mock.calls[0]![0] as string

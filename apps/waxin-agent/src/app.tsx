@@ -26,7 +26,7 @@ import { HelpDialogContent } from './components/help/HelpDialogContent.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
 import type { BannerConfig, UserQuestion } from './types.js'
 import type { DebugTab } from './components/index.js'
-import { DEFAULT_BANNER_CONFIG, FLOATING_IMAGE_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
+import { DEFAULT_BANNER_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker } from './shortcuts.js'
@@ -592,8 +592,8 @@ const AppContent = () => {
         })
 
         // Log execution complete with full metrics
-        log.executionComplete({
-          prompt: text,
+        log.info('AGENT', 'execution_complete', {
+          prompt: text.slice(0, 100),
           durationMs: result.durationMs,
           inputTokens: result.usage.inputTokens,
           outputTokens: result.usage.outputTokens,
@@ -694,8 +694,8 @@ const AppContent = () => {
         padding: 1,
       }}
     >
-      {/* Content Area - flex: 1 limits growth so PromptBox has space */}
-      <box style={{ flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Content Area - flexGrow: 1 limits growth so PromptBox has space */}
+      <box style={{ flexGrow: 1, flexDirection: 'column', overflow: 'hidden' }}>
         {hasMessages ? (
           <ChatLayout
             messages={messages}

@@ -8,6 +8,9 @@ const mockBotFatherGetAllBotsWithTokens = vi.fn()
 const mockBotFatherSetCommands = vi.fn()
 const mockBotFatherSetDescription = vi.fn()
 const mockBotFatherSetAboutText = vi.fn()
+const mockBotFatherGetBotInfo = vi.fn()
+const mockBotFatherSetName = vi.fn()
+const mockBotFatherCheckUsernameAvailable = vi.fn()
 
 vi.mock('@mks2508/mks-bot-father', () => ({
   getPipeline: () => ({
@@ -20,6 +23,9 @@ vi.mock('@mks2508/mks-bot-father', () => ({
     setCommands: mockBotFatherSetCommands,
     setDescription: mockBotFatherSetDescription,
     setAboutText: mockBotFatherSetAboutText,
+    getBotInfo: mockBotFatherGetBotInfo,
+    setName: mockBotFatherSetName,
+    checkUsernameAvailable: mockBotFatherCheckUsernameAvailable,
   }),
 }))
 
@@ -228,10 +234,14 @@ describe('Bot Manager Tools', () => {
       const result = await tool!.handler({})
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('Found 2 bot(s)')
-      expect(result.content[0].text).toContain('@bot1')
-      expect(result.content[0].text).toContain('token1')
-      expect(result.content[0].text).toContain('@bot2')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.bots).toHaveLength(2)
+      expect(parsed.bots[0].username).toBe('bot1')
+      expect(parsed.bots[0].token).toBe('token1')
+      expect(parsed.bots[1].username).toBe('bot2')
+      expect(parsed.progress).toBeDefined()
+      expect(parsed.progress.length).toBeGreaterThan(0)
 
       expect(mockBotFatherDisconnect).toHaveBeenCalled()
     })
@@ -243,8 +253,11 @@ describe('Bot Manager Tools', () => {
       const result = await tool!.handler({})
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('No bots found')
-      expect(result.content[0].text).toContain('create_bot tool')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.bots).toHaveLength(0)
+      expect(parsed.message).toContain('No bots found')
+      expect(parsed.progress).toBeDefined()
     })
 
     it('should handle BotFather init failure', async () => {
@@ -376,10 +389,11 @@ describe('Bot Manager Tools', () => {
       })
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('Success')
-      expect(result.content[0].text).toContain('Commands updated')
-      expect(result.content[0].text).toContain('Errors')
-      expect(result.content[0].text).toContain('Description failed')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.results).toContain('Commands updated (1 commands)')
+      expect(parsed.errors).toHaveLength(1)
+      expect(parsed.errors[0]).toContain('Description failed')
     })
 
     it('should return error when all operations fail', async () => {
@@ -402,14 +416,17 @@ describe('Bot Manager Tools', () => {
       expect(result.content[0].text).toContain('Description failed')
     })
 
-    it('should return "No changes" when nothing requested', async () => {
+    it('should return empty results when nothing requested', async () => {
       const tool = getTool('configure_bot')
       const result = await tool!.handler({
         botUsername: 'test_bot',
       })
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('No changes requested')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(false)
+      expect(parsed.results).toHaveLength(0)
+      expect(parsed.errors).toHaveLength(0)
     })
 
     it('should handle unexpected errors', async () => {
@@ -445,8 +462,11 @@ describe('Bot Manager Tools', () => {
       })
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('@test_bot')
-      expect(result.content[0].text).toContain('secret_token_123')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.botUsername).toBe('test_bot')
+      expect(parsed.token).toBe('secret_token_123')
+      expect(parsed.progress).toBeDefined()
 
       expect(mockBotFatherDisconnect).toHaveBeenCalled()
     })
@@ -462,7 +482,8 @@ describe('Bot Manager Tools', () => {
       })
 
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('@test_bot')
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.botUsername).toBe('test_bot')
     })
 
     it('should handle bot not found', async () => {
@@ -538,6 +559,207 @@ describe('Bot Manager Tools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Error')
+    })
+  })
+
+  describe('get_bot_info tool', () => {
+    it('should get bot info successfully', async () => {
+      mockBotFatherGetBotInfo.mockResolvedValue(
+        ok({
+          username: 'test_bot',
+          name: 'Test Bot',
+          description: 'A test bot',
+          aboutText: 'About text',
+          commands: [{ command: 'start', description: 'Start' }],
+        })
+      )
+
+      const tool = getTool('get_bot_info')
+      expect(tool).toBeDefined()
+
+      const result = await tool!.handler({ botUsername: 'test_bot' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.botInfo.username).toBe('test_bot')
+      expect(parsed.progress).toBeDefined()
+      expect(mockBotFatherDisconnect).toHaveBeenCalled()
+    })
+
+    it('should handle username with @ prefix', async () => {
+      mockBotFatherGetBotInfo.mockResolvedValue(
+        ok({ username: 'test_bot', name: 'Test' })
+      )
+
+      const tool = getTool('get_bot_info')
+      const result = await tool!.handler({ botUsername: '@test_bot' })
+
+      expect(result.isError).toBeFalsy()
+    })
+
+    it('should handle getBotInfo failure', async () => {
+      mockBotFatherGetBotInfo.mockResolvedValue(
+        err({ code: 'BOTFATHER_ERROR', message: 'Bot not found' })
+      )
+
+      const tool = getTool('get_bot_info')
+      const result = await tool!.handler({ botUsername: 'unknown_bot' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to get bot info')
+    })
+
+    it('should handle init failure', async () => {
+      mockBotFatherInit.mockResolvedValue(
+        err({ code: 'BOTFATHER_ERROR', message: 'Init failed' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../bot-manager.js')
+
+      const tool = getTool('get_bot_info')
+      const result = await tool!.handler({ botUsername: 'test_bot' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to initialize BotFather')
+    })
+  })
+
+  describe('set_bot_name tool', () => {
+    it('should set bot name successfully', async () => {
+      mockBotFatherSetName.mockResolvedValue(ok(undefined))
+
+      const tool = getTool('set_bot_name')
+      expect(tool).toBeDefined()
+
+      const result = await tool!.handler({
+        botUsername: 'test_bot',
+        name: 'New Bot Name',
+      })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.newName).toBe('New Bot Name')
+      expect(parsed.progress).toBeDefined()
+      expect(mockBotFatherSetName).toHaveBeenCalledWith('test_bot', 'New Bot Name')
+      expect(mockBotFatherDisconnect).toHaveBeenCalled()
+    })
+
+    it('should handle setName failure', async () => {
+      mockBotFatherSetName.mockResolvedValue(
+        err({ code: 'BOTFATHER_ERROR', message: 'Name too long' })
+      )
+
+      const tool = getTool('set_bot_name')
+      const result = await tool!.handler({
+        botUsername: 'test_bot',
+        name: 'x'.repeat(100),
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to set bot name')
+    })
+
+    it('should handle init failure', async () => {
+      mockBotFatherInit.mockResolvedValue(
+        err({ code: 'BOTFATHER_ERROR', message: 'Auth error' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../bot-manager.js')
+
+      const tool = getTool('set_bot_name')
+      const result = await tool!.handler({
+        botUsername: 'test_bot',
+        name: 'New Name',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to initialize BotFather')
+    })
+  })
+
+  describe('check_username_available tool', () => {
+    it('should return available for free username', async () => {
+      mockBotFatherCheckUsernameAvailable.mockResolvedValue(true)
+
+      const tool = getTool('check_username_available')
+      expect(tool).toBeDefined()
+
+      const result = await tool!.handler({ botUsername: 'new_bot' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.isAvailable).toBe(true)
+      expect(parsed.username).toBe('new_bot')
+      expect(parsed.message).toContain('is available')
+      expect(parsed.progress).toBeDefined()
+    })
+
+    it('should return unavailable for taken username', async () => {
+      mockBotFatherCheckUsernameAvailable.mockResolvedValue(false)
+
+      const tool = getTool('check_username_available')
+      const result = await tool!.handler({ botUsername: 'existing_bot' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.isAvailable).toBe(false)
+      expect(parsed.message).toContain('already taken')
+    })
+
+    it('should add _bot suffix if missing', async () => {
+      mockBotFatherCheckUsernameAvailable.mockResolvedValue(true)
+
+      const tool = getTool('check_username_available')
+      const result = await tool!.handler({ botUsername: 'myapp' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.username).toBe('myapp_bot')
+    })
+
+    it('should not add suffix if already ends with Bot', async () => {
+      mockBotFatherCheckUsernameAvailable.mockResolvedValue(true)
+
+      const tool = getTool('check_username_available')
+      const result = await tool!.handler({ botUsername: 'myAppBot' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.username).toBe('myAppBot')
+    })
+
+    it('should handle @ prefix', async () => {
+      mockBotFatherCheckUsernameAvailable.mockResolvedValue(true)
+
+      const tool = getTool('check_username_available')
+      const result = await tool!.handler({ botUsername: '@test_bot' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.username).toBe('test_bot')
+    })
+
+    it('should handle init failure', async () => {
+      mockBotFatherInit.mockResolvedValue(
+        err({ code: 'BOTFATHER_ERROR', message: 'Network error' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../bot-manager.js')
+
+      const tool = getTool('check_username_available')
+      const result = await tool!.handler({ botUsername: 'test_bot' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to initialize BotFather')
     })
   })
 })

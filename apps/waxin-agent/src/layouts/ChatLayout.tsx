@@ -42,10 +42,10 @@ export function ChatLayout({
       {showHeader && <Header waxinText={waxinText} />}
       <Topbar text="WAXIN MK1" font="banner" isStreaming={isStreaming} isExecuting={isExecuting} />
 
-      {/* Messages Area - flex: 1 to share space with siblings */}
+      {/* Messages Area - flexGrow: 1 to share space with siblings */}
       <box
         style={{
-          flex: 1,
+          flexGrow: 1,
           marginTop: 1,
           paddingLeft: 1,
           paddingRight: 1,

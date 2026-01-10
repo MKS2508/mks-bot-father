@@ -9,7 +9,7 @@ import { mcpServers, allAllowedTools } from './tools/index.js'
 import { subagents } from './subagents/index.js'
 import { SYSTEM_PROMPT } from './prompts/system.js'
 import { logger } from './utils/logger.js'
-import type { AgentOptions, AgentResult, ToolCallLog, PermissionDenial, ProgressEvent } from './types.js'
+import type { AgentOptions, AgentResult, ToolCallLog, PermissionDenial } from './types.js'
 
 interface ContentBlock {
   type: string
@@ -17,6 +17,7 @@ interface ContentBlock {
   name?: string
   input?: unknown
   id?: string
+  content?: string | unknown
 }
 
 export async function runAgent(

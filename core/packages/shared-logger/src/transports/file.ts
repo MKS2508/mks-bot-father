@@ -5,7 +5,7 @@
  */
 
 import type { LogTransport, JsonLogEntry, FileTransportOptions } from '../types.js'
-import { mkdirSync, existsSync, appendFileSync, writeFileSync } from 'fs'
+import { mkdirSync, existsSync, appendFileSync } from 'fs'
 import { resolve } from 'path'
 
 /**

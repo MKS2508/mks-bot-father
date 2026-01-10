@@ -106,9 +106,9 @@ export const ToolProgress = ({
   if (compact) {
     return (
       <box style={{ flexDirection: 'row' }}>
-        <text style={{ fg: statusColor, bold: true }}>{statusIcon}</text>
+        <text style={{ fg: statusColor }}>{statusIcon}</text>
         <text style={{ fg: THEME.textMuted }}> </text>
-        <text style={{ fg: THEME.cyan, bold: true }}>{execution.tool}</text>
+        <text style={{ fg: THEME.cyan }}>{execution.tool}</text>
         {inputText && (
           <>
             <text style={{ fg: THEME.textMuted }}> </text>
@@ -141,9 +141,9 @@ export const ToolProgress = ({
     >
       {/* Header: status icon, tool name, elapsed time */}
       <box style={{ flexDirection: 'row' }}>
-        <text style={{ fg: statusColor, bold: true }}>{statusIcon}</text>
+        <text style={{ fg: statusColor }}>{statusIcon}</text>
         <text style={{ fg: THEME.textMuted }}> </text>
-        <text style={{ fg: THEME.cyan, bold: true }}>{execution.tool}</text>
+        <text style={{ fg: THEME.cyan }}>{execution.tool}</text>
         <text style={{ fg: THEME.textMuted }}> </text>
         <text style={{ fg: THEME.textDim }}>{elapsedStr}</text>
         {execution.blockId && (

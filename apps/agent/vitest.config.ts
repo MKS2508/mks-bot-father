@@ -1,6 +1,12 @@
 import { defineConfig } from 'vitest/config'
+import { resolve } from 'path'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@mks2508/shared-logger': resolve(__dirname, '../../core/packages/shared-logger/dist/index.js'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

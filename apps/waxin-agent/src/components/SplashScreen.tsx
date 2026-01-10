@@ -12,7 +12,7 @@ import 'opentui-spinner/react'
 import type { SplashConfig } from '../types.js'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
-import { Header } from './Header.tsx'
+import { Header } from './Header.js'
 
 declare module '@opentui/react' {
   interface OpenTUIComponents {

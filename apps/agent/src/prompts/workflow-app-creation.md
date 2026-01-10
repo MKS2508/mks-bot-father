@@ -25,12 +25,7 @@ Cuando el usuario pida crear una app ("creame una app para...", "crea un bot de.
 ## Fase 1: Scaffolding
 
 ### Objetivo
-Crear estructura del proyecto usando bunspace
-
-### Comando
-```bash
-bunx create bunspace@latest {project-name} --template {template} --yes
-```
+Crear estructura del proyecto usando bunspace con las **scaffolder tools dedicadas**
 
 ### Templates disponibles
 | Template | Descripcion |
@@ -39,19 +34,25 @@ bunx create bunspace@latest {project-name} --template {template} --yes
 | `telegram-bot` | Bot de Telegram con Telegraf, Docker-ready |
 | `fumadocs` | Documentacion con Next.js + MDX bilingue |
 
-### Herramientas MCP
-- `mcp__code-executor__execute_command` - Ejecutar bunspace
-- `mcp__code-executor__get_project_structure` - Verificar estructura
+### Herramientas MCP - USAR SCAFFOLDER
+```
+mcp__scaffolder__scaffold_project({
+  name: "{project-name}",
+  template: "telegram-bot",  // o monorepo, fumadocs
+  skipGit: false,
+  skipInstall: false
+})
+```
 
 ### Verificacion
-- [ ] Directorio creado
-- [ ] package.json presente
-- [ ] src/ estructura correcta
-- [ ] tsconfig.json valido
+La tool retorna automaticamente:
+- [ ] Lista de archivos creados
+- [ ] Confirmacion de package.json
+- [ ] Next steps sugeridos
 
 ### Si falla
-- Verificar que bunspace esta instalado: `bunx create bunspace@latest --help`
-- Probar con nombre diferente si ya existe el directorio
+- Verificar que directorio no existe o esta vacio
+- Probar con nombre diferente si ya existe
 
 ---
 
@@ -60,28 +61,44 @@ bunx create bunspace@latest {project-name} --template {template} --yes
 ### Objetivo
 Verificar que el proyecto compila y pasa lint
 
-### Herramientas MCP
-- `mcp__code-executor__install_dependencies` - Instalar deps (auto-detect bun)
-- `mcp__code-executor__type_check` - TypeScript check
-- `mcp__code-executor__lint_project` - Lint (fix=true si hay errores)
-- `mcp__code-executor__build_project` - Build
+### Herramientas MCP - USAR SCAFFOLDER
+```
+mcp__scaffolder__validate_project({
+  projectPath: "/path/to/project",
+  fix: true,  // auto-fix lint errors
+  skipSteps: []  // ejecutar todos: install, typecheck, lint, build
+})
+```
 
-### Secuencia
-1. `install_dependencies` con packageManager='auto'
-2. `type_check` - si hay errores, arreglarlos con Edit tool
-3. `lint_project` con fix=true
-4. `build_project` - verificar que compila
+### Pipeline ejecutado automaticamente
+1. **install** - Detecta package manager y ejecuta install
+2. **typecheck** - TypeScript check (bun run typecheck || npx tsc --noEmit)
+3. **lint** - Lint con --fix si fix=true
+4. **build** - Build del proyecto
 
 ### Verificacion
-- [ ] bun.lock presente
-- [ ] 0 errores de TypeScript
-- [ ] 0 errores de lint
-- [ ] Build exitoso (dist/ generado)
+La tool retorna metricas por paso:
+- [ ] install: success + duration_ms
+- [ ] typecheck: success + errorCount
+- [ ] lint: success + warningCount + fixedCount
+- [ ] build: success + duration_ms
 
 ### Si falla
-- Leer errores de type_check en el output
+- Leer errores en steps.{step}.output
 - Usar Read + Edit tools para arreglar
-- Re-ejecutar validaciones hasta 0 errores
+- Re-ejecutar `validate_project` hasta 0 errores
+
+### Personalizar archivos (opcional)
+```
+mcp__scaffolder__update_project_files({
+  projectPath: "/path/to/project",
+  updates: {
+    readme: { title: "Mi Proyecto", description: "..." },
+    envExample: { variables: { TG_BOT_TOKEN: "Token del bot" } },
+    gitignore: { add: [".env.local"] }
+  }
+})
+```
 
 ---
 
@@ -382,7 +399,14 @@ El workflow puede resumirse desde cualquier fase:
 
 ## Quick Reference: Tools por Fase
 
-### Fase 1-2: Scaffolding y Validacion
+### Fase 1-2: Scaffolding y Validacion (USAR SCAFFOLDER)
+```
+mcp__scaffolder__scaffold_project      # Crear proyecto con bunspace
+mcp__scaffolder__validate_project      # Pipeline: install -> typecheck -> lint -> build
+mcp__scaffolder__update_project_files  # Personalizar README, .env.example, etc.
+```
+
+### Fase 1-2: Alternativa Code Executor (solo si scaffolder falla)
 ```
 mcp__code-executor__execute_command
 mcp__code-executor__get_project_structure

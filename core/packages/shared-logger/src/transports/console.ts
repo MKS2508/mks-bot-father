@@ -101,7 +101,7 @@ export class ConsoleTransport implements LogTransport {
       if (metrics) {
         const metricsParts: string[] = []
         if (metrics.duration_ms) metricsParts.push(`${metrics.duration_ms}ms`)
-        if (metrics.tokens) metricsParts.push(`${metrics.tokens.in + tokens.tokens.out}t`)
+        if (metrics.tokens) metricsParts.push(`${metrics.tokens.in + metrics.tokens.out}t`)
         if (metrics.cost_usd) metricsParts.push(`$${metrics.cost_usd}`)
         if (metrics.tool_count) metricsParts.push(`${metrics.tool_count} tools`)
 

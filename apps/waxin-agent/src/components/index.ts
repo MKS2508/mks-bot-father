@@ -42,4 +42,4 @@ export {
   AgentSwitchOverlay,
   getOverlayComponent,
   hasOverlay,
-} from './overlays/index.tsx'
+} from './overlays/index.js'

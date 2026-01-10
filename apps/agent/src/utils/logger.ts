@@ -4,43 +4,70 @@
  * Provides console output with colors + JSON file logging using @mks2508/shared-logger.
  */
 
-import { JsonLogger, consoleTransport, fileTransport, cliPreset, type LogMetrics } from '@mks2508/shared-logger'
+import {
+  JsonLogger,
+  consoleTransport,
+  fileTransport,
+  type LogMetrics,
+  type LogLevel,
+  LOG_LEVEL_PRIORITY
+} from '@mks2508/shared-logger'
 
-const logger = new JsonLogger(cliPreset({
-  logDir: '~/.config/mks-bot-father/logs',
-  level: process.env.DEBUG ? 'DBG' : 'INF'
-}))
+const consoleLevel: LogLevel = process.env.DEBUG ? 'DBG' : 'INF'
 
-export { logger }
+const filteredConsoleTransport = {
+  name: 'console-filtered',
+  log(entry: { level: LogLevel; [key: string]: unknown }) {
+    if (LOG_LEVEL_PRIORITY[entry.level] >= LOG_LEVEL_PRIORITY[consoleLevel]) {
+      consoleTransport({ colors: true, timestamp: true }).log(entry as any)
+    }
+  }
+}
 
-// Convenience exports for backward compatibility
-export const log = {
+const jsonLogger = new JsonLogger({
+  level: 'DBG',
+  transports: [
+    filteredConsoleTransport,
+    fileTransport({ dir: '~/.config/mks-bot-father/logs', prefix: 'agent' })
+  ]
+})
+
+/**
+ * Agent logger with convenience methods.
+ * Wraps JsonLogger with agent-specific methods.
+ */
+export const logger = {
   info(message: string, data?: Record<string, unknown>) {
-    logger.info('AGENT', message, data)
+    jsonLogger.info('AGENT', message, data)
   },
 
   success(message: string, data?: Record<string, unknown>) {
-    logger.info('AGENT', message, data)
+    jsonLogger.info('AGENT', message, data)
   },
 
   warn(message: string, data?: Record<string, unknown>) {
-    logger.warn('AGENT', message, data)
+    jsonLogger.warn('AGENT', message, data)
   },
 
   error(message: string, data?: Record<string, unknown>) {
-    logger.error('AGENT', message, data)
+    jsonLogger.error('AGENT', message, data)
   },
 
   debug(message: string, data?: Record<string, unknown>) {
-    logger.debug('AGENT', message, data)
+    jsonLogger.debug('AGENT', message, data)
   },
 
   assistant(message: string) {
-    logger.info('AGENT', 'assistant_response', { preview: message.slice(0, 200) })
+    jsonLogger.info('AGENT', 'assistant_response', { preview: message.slice(0, 200) })
   },
 
   tool(name: string, input?: unknown) {
-    logger.tool(name, { hasInput: !!input })
+    jsonLogger.log({
+      level: 'INF',
+      src: 'AGENT',
+      msg: 'tool_call',
+      data: { tool: name, hasInput: !!input }
+    })
   },
 
   toolResult(tool: string, result: unknown, success = true, durationMs?: number) {
@@ -48,18 +75,39 @@ export const log = {
       ? result.slice(0, 100)
       : JSON.stringify(result).slice(0, 100)
 
-    logger.logWithMetrics(
-      'AGENT',
-      'tool_result',
-      { duration_ms: durationMs },
-      {
+    const level = success ? 'INF' : 'ERR'
+    jsonLogger.log({
+      level,
+      src: 'AGENT',
+      msg: 'tool_result',
+      data: {
         tool,
         success,
-        preview: preview.slice(0, 100)
+        preview: preview.slice(0, 100),
+        duration_ms: durationMs
       }
-    )
+    })
+  },
+
+  log(entry: { level: string; src: string; msg: string; data?: Record<string, unknown> }) {
+    jsonLogger.log(entry as Parameters<typeof jsonLogger.log>[0])
+  },
+
+  executionComplete(metrics: {
+    prompt: string
+    durationMs: number
+    inputTokens: number
+    outputTokens: number
+    costUsd: number
+    toolCalls: number
+    success: boolean
+  }) {
+    jsonLogger.executionComplete(metrics)
   }
 }
+
+// Alias for backward compatibility
+export const log = logger
 
 /**
  * Log agent event with optional metrics
@@ -74,7 +122,7 @@ export function logAgentEvent(
     level,
     src: 'AGENT',
     msg,
-    data: metrics ? { ...data, ...metrics } : data
+    data: metrics ? { ...data, metrics } : data
   })
 }
 

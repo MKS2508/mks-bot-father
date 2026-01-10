@@ -72,6 +72,7 @@ bun run debug:all        # Run all debug scripts
 | `tools/github.ts` | GitHub operations MCP server |
 | `tools/coolify.ts` | Coolify deployment MCP server |
 | `tools/code-executor.ts` | Shell command execution MCP server |
+| `tools/scaffolder.ts` | Project scaffolding with bunspace templates |
 | `prompts/system.ts` | System prompt for Claude |
 | `subagents/` | Subagent definitions for specialized tasks |
 | `types.ts` | TypeScript types (AgentOptions, AgentResult, etc.) |
@@ -127,6 +128,11 @@ The agent exposes these tools to the Claude Agent SDK (registered in `tools/inde
 - `mcp__code-executor__lint_project` - Lint project
 - `mcp__code-executor__type_check` - Type check
 - `mcp__code-executor__get_project_structure` - Get project structure
+
+**Scaffolder Tools:**
+- `mcp__scaffolder__scaffold_project` - Create new project using bunspace templates (monorepo, telegram-bot, fumadocs)
+- `mcp__scaffolder__validate_project` - Run full validation pipeline (install → typecheck → lint → build)
+- `mcp__scaffolder__update_project_files` - Update README, .gitignore, .env.example, package.json after scaffolding
 
 ---
 

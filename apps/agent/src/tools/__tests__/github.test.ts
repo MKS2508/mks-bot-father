@@ -133,7 +133,8 @@ describe('GitHub Tools', () => {
       expect(mockGitHubCreateRepo).toHaveBeenCalledWith(
         expect.objectContaining({
           owner: 'myorg',
-        })
+        }),
+        expect.any(Function)
       )
     })
 
@@ -154,7 +155,8 @@ describe('GitHub Tools', () => {
         expect.objectContaining({
           templateOwner: 'MKS2508',
           templateRepo: 'mks-telegram-bot',
-        })
+        }),
+        expect.any(Function)
       )
     })
 

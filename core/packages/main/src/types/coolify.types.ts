@@ -7,6 +7,8 @@
  * @module
  */
 
+import type { IProgressCallback } from './progress.types.js'
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // INPUT OPTIONS (camelCase - internal use)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -21,6 +23,8 @@ export interface ICoolifyDeployOptions {
   tag?: string
   /** Force rebuild without cache */
   force?: boolean
+  /** Progress callback for deployment status updates */
+  onProgress?: IProgressCallback
 }
 
 /**

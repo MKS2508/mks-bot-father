@@ -161,11 +161,11 @@ export const ToolResultCard = ({
     >
       {/* Header row: status icon, tool name, duration */}
       <box style={{ flexDirection: 'row' }}>
-        <text style={{ fg: statusColor as any, bold: true }}>
+        <text style={{ fg: statusColor as any }}>
           {statusIcon}
         </text>
         <text style={{ fg: THEME.textMuted }}> </text>
-        <text style={{ fg: THEME.cyan, bold: true }}>
+        <text style={{ fg: THEME.cyan }}>
           {tool}
         </text>
         <text style={{ fg: THEME.textMuted }}> </text>

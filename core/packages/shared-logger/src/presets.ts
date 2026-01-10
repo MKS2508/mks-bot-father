@@ -4,7 +4,6 @@
  * Pre-configured logger instances for common use cases.
  */
 
-import { JsonLogger } from './json-logger.js'
 import { consoleTransport, fileTransport } from './transports/index.js'
 import type { JsonLoggerOptions } from './types.js'
 

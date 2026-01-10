@@ -63,6 +63,7 @@ Returns: bot token, username, and deployment URLs if applicable.`,
           createGithub: args.createGithub,
           deployToCoolify: args.deployToCoolify
         })
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
 
         try {
           const pipeline = getPipeline()
@@ -73,7 +74,11 @@ Returns: bot token, username, and deployment URLs if applicable.`,
             githubOrg: args.githubOrg,
             deployToCoolify: args.deployToCoolify,
             coolifyServer: args.coolifyServer,
-            coolifyDestination: args.coolifyDestination
+            coolifyDestination: args.coolifyDestination,
+            onProgress: (pct, msg, step) => {
+              progressEvents.push({ pct, msg, step })
+              log.info(`Progress ${pct}%: ${msg}`, { step })
+            }
           })
 
           if (isOk(result)) {
@@ -93,7 +98,8 @@ Returns: bot token, username, and deployment URLs if applicable.`,
                     botToken: data.botToken,
                     githubRepoUrl: data.githubRepoUrl || null,
                     deploymentUrl: data.deploymentUrl || null,
-                    coolifyAppUuid: data.coolifyAppUuid || null
+                    coolifyAppUuid: data.coolifyAppUuid || null,
+                    progress: progressEvents
                   }, null, 2)
                 }]
               }
@@ -140,8 +146,15 @@ with their usernames and tokens. Requires Telegram API credentials.`,
       async () => {
         const log = createToolLogger('bot-manager.list_bots')
         const startTime = log.start({})
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
+        const reportProgress = (pct: number, msg: string, step?: string) => {
+          progressEvents.push({ pct, msg, step })
+          log.info(`Progress ${pct}%: ${msg}`, { step })
+        }
 
         try {
+          reportProgress(10, 'Initializing BotFather connection...', 'init')
           const botfather = getBotFatherService()
           const initResult = await botfather.init()
 
@@ -156,30 +169,42 @@ with their usernames and tokens. Requires Telegram API credentials.`,
             }
           }
 
+          reportProgress(40, 'Connected. Fetching bot list...', 'fetch')
           const result = await botfather.getAllBotsWithTokens()
+
+          reportProgress(80, 'Disconnecting...', 'disconnect')
           await botfather.disconnect()
 
           if (isOk(result)) {
             const bots = result.value
+            reportProgress(100, `Found ${bots.length} bots`, 'done')
             log.success(startTime, { botCount: bots.length })
 
             if (bots.length === 0) {
               return {
                 content: [{
                   type: 'text' as const,
-                  text: 'No bots found. Create one with create_bot tool.'
+                  text: JSON.stringify({
+                    success: true,
+                    bots: [],
+                    message: 'No bots found. Create one with create_bot tool.',
+                    progress: progressEvents
+                  }, null, 2)
                 }]
               }
             }
 
-            const formatted = bots.map((bot, i) =>
-              `${i + 1}. @${bot.username}\n   Token: ${bot.token}`
-            ).join('\n\n')
-
             return {
               content: [{
                 type: 'text' as const,
-                text: `Found ${bots.length} bot(s):\n\n${formatted}`
+                text: JSON.stringify({
+                  success: true,
+                  bots: bots.map(bot => ({
+                    username: bot.username,
+                    token: bot.token
+                  })),
+                  progress: progressEvents
+                }, null, 2)
               }]
             }
           } else {
@@ -239,15 +264,26 @@ Can update:
           hasDescription: !!args.description,
           hasAboutText: !!args.aboutText
         })
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
+        const reportProgress = (pct: number, msg: string, step?: string) => {
+          progressEvents.push({ pct, msg, step })
+          log.info(`Progress ${pct}%: ${msg}`, { step })
+        }
 
         try {
+          reportProgress(10, 'Initializing BotFather...', 'init')
           const botfather = getBotFatherService()
           await botfather.init()
 
           const results: string[] = []
           const errors: string[] = []
+          const totalSteps = [args.commands?.length, args.description, args.aboutText].filter(Boolean).length
+          let currentStep = 0
 
           if (args.commands && args.commands.length > 0) {
+            currentStep++
+            reportProgress(20 + (currentStep / totalSteps) * 60, `Setting ${args.commands.length} commands...`, 'commands')
             const cmdResult = await botfather.setCommands(args.botUsername, args.commands)
             if (isOk(cmdResult)) {
               results.push(`Commands updated (${args.commands.length} commands)`)
@@ -257,6 +293,8 @@ Can update:
           }
 
           if (args.description) {
+            currentStep++
+            reportProgress(20 + (currentStep / totalSteps) * 60, 'Setting description...', 'description')
             const descResult = await botfather.setDescription(args.botUsername, args.description)
             if (isOk(descResult)) {
               results.push('Description updated')
@@ -266,6 +304,8 @@ Can update:
           }
 
           if (args.aboutText) {
+            currentStep++
+            reportProgress(20 + (currentStep / totalSteps) * 60, 'Setting about text...', 'about')
             const aboutResult = await botfather.setAboutText(args.botUsername, args.aboutText)
             if (isOk(aboutResult)) {
               results.push('About text updated')
@@ -274,12 +314,9 @@ Can update:
             }
           }
 
+          reportProgress(90, 'Disconnecting...', 'disconnect')
           await botfather.disconnect()
-
-          const summary = [
-            results.length > 0 ? `Success:\n${results.map(r => `  - ${r}`).join('\n')}` : '',
-            errors.length > 0 ? `Errors:\n${errors.map(e => `  - ${e}`).join('\n')}` : ''
-          ].filter(Boolean).join('\n\n')
+          reportProgress(100, 'Configuration complete', 'done')
 
           if (errors.length > 0 && results.length === 0) {
             log.error(startTime, errors.join(', '), { results, errors })
@@ -290,7 +327,12 @@ Can update:
           return {
             content: [{
               type: 'text' as const,
-              text: summary || 'No changes requested'
+              text: JSON.stringify({
+                success: results.length > 0,
+                results,
+                errors,
+                progress: progressEvents
+              }, null, 2)
             }],
             isError: errors.length > 0 && results.length === 0
           }
@@ -319,8 +361,15 @@ variables or other systems.`,
       async (args) => {
         const log = createToolLogger('bot-manager.get_bot_token')
         const startTime = log.start({ botUsername: args.botUsername })
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
+        const reportProgress = (pct: number, msg: string, step?: string) => {
+          progressEvents.push({ pct, msg, step })
+          log.info(`Progress ${pct}%: ${msg}`, { step })
+        }
 
         try {
+          reportProgress(10, 'Initializing BotFather...', 'init')
           const botfather = getBotFatherService()
           const initResult = await botfather.init()
 
@@ -335,7 +384,10 @@ variables or other systems.`,
             }
           }
 
+          reportProgress(40, 'Fetching bot token...', 'fetch')
           const result = await botfather.getAllBotsWithTokens()
+
+          reportProgress(80, 'Disconnecting...', 'disconnect')
           await botfather.disconnect()
 
           if (isOk(result)) {
@@ -343,11 +395,17 @@ variables or other systems.`,
             const bot = result.value.find(b => b.username === username)
 
             if (bot) {
+              reportProgress(100, 'Token retrieved', 'done')
               log.success(startTime, { found: true })
               return {
                 content: [{
                   type: 'text' as const,
-                  text: `Token for @${username}:\n${bot.token}`
+                  text: JSON.stringify({
+                    success: true,
+                    botUsername: username,
+                    token: bot.token,
+                    progress: progressEvents
+                  }, null, 2)
                 }]
               }
             }
@@ -369,6 +427,234 @@ variables or other systems.`,
               }],
               isError: true
             }
+          }
+        } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true
+          }
+        }
+      }
+    ),
+
+    tool(
+      'get_bot_info',
+      `Get detailed information about a specific bot from BotFather.
+
+Returns bot name, username, description, about text, and settings.`,
+      {
+        botUsername: z.string().describe('Bot username (with or without @)')
+      },
+      async (args) => {
+        const log = createToolLogger('bot-manager.get_bot_info')
+        const startTime = log.start({ botUsername: args.botUsername })
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
+        const reportProgress = (pct: number, msg: string, step?: string) => {
+          progressEvents.push({ pct, msg, step })
+          log.info(`Progress ${pct}%: ${msg}`, { step })
+        }
+
+        try {
+          reportProgress(10, 'Initializing BotFather...', 'init')
+          const botfather = getBotFatherService()
+          const initResult = await botfather.init()
+
+          if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to initialize BotFather: ${initResult.error.message}`
+              }],
+              isError: true
+            }
+          }
+
+          reportProgress(40, 'Fetching bot info...', 'fetch')
+          const username = args.botUsername.replace('@', '')
+          const result = await botfather.getBotInfo(username)
+
+          reportProgress(80, 'Disconnecting...', 'disconnect')
+          await botfather.disconnect()
+
+          if (isOk(result)) {
+            reportProgress(100, 'Info retrieved', 'done')
+            log.success(startTime, { found: true })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  success: true,
+                  botInfo: result.value,
+                  progress: progressEvents
+                }, null, 2)
+              }]
+            }
+          } else {
+            log.error(startTime, result.error.message, { phase: 'getBotInfo' })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to get bot info: ${result.error.message}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true
+          }
+        }
+      }
+    ),
+
+    tool(
+      'set_bot_name',
+      `Change the display name of a bot via BotFather.
+
+The display name is shown in the chat title and profile.`,
+      {
+        botUsername: z.string().describe('Bot username (with or without @)'),
+        name: z.string().min(1).max(64).describe('New display name for the bot')
+      },
+      async (args) => {
+        const log = createToolLogger('bot-manager.set_bot_name')
+        const startTime = log.start({ botUsername: args.botUsername, name: args.name })
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
+        const reportProgress = (pct: number, msg: string, step?: string) => {
+          progressEvents.push({ pct, msg, step })
+          log.info(`Progress ${pct}%: ${msg}`, { step })
+        }
+
+        try {
+          reportProgress(10, 'Initializing BotFather...', 'init')
+          const botfather = getBotFatherService()
+          const initResult = await botfather.init()
+
+          if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to initialize BotFather: ${initResult.error.message}`
+              }],
+              isError: true
+            }
+          }
+
+          reportProgress(40, 'Setting bot name...', 'set_name')
+          const username = args.botUsername.replace('@', '')
+          const result = await botfather.setName(username, args.name)
+
+          reportProgress(80, 'Disconnecting...', 'disconnect')
+          await botfather.disconnect()
+
+          if (isOk(result)) {
+            reportProgress(100, 'Name updated', 'done')
+            log.success(startTime, { name: args.name })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  success: true,
+                  botUsername: username,
+                  newName: args.name,
+                  progress: progressEvents
+                }, null, 2)
+              }]
+            }
+          } else {
+            log.error(startTime, result.error.message, { phase: 'setName' })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to set bot name: ${result.error.message}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true
+          }
+        }
+      }
+    ),
+
+    tool(
+      'check_username_available',
+      `Check if a bot username is available for registration.
+
+Useful before creating a new bot to verify the username is free.`,
+      {
+        botUsername: z.string().describe('Username to check (with or without @, with or without _bot suffix)')
+      },
+      async (args) => {
+        const log = createToolLogger('bot-manager.check_username_available')
+        const startTime = log.start({ botUsername: args.botUsername })
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
+        const reportProgress = (pct: number, msg: string, step?: string) => {
+          progressEvents.push({ pct, msg, step })
+          log.info(`Progress ${pct}%: ${msg}`, { step })
+        }
+
+        try {
+          reportProgress(10, 'Initializing BotFather...', 'init')
+          const botfather = getBotFatherService()
+          const initResult = await botfather.init()
+
+          if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to initialize BotFather: ${initResult.error.message}`
+              }],
+              isError: true
+            }
+          }
+
+          reportProgress(40, 'Checking username...', 'check')
+          let username = args.botUsername.replace('@', '')
+          if (!username.endsWith('_bot') && !username.endsWith('Bot')) {
+            username = username + '_bot'
+          }
+
+          const isAvailable = await botfather.checkUsernameAvailable(username)
+
+          reportProgress(80, 'Disconnecting...', 'disconnect')
+          await botfather.disconnect()
+
+          reportProgress(100, 'Check complete', 'done')
+          log.success(startTime, { username, isAvailable })
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: true,
+                username,
+                isAvailable,
+                message: isAvailable ? `@${username} is available` : `@${username} is already taken`,
+                progress: progressEvents
+              }, null, 2)
+            }]
           }
         } catch (error) {
           log.error(startTime, error, { phase: 'exception' })

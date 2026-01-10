@@ -18,8 +18,8 @@ export type {
   SDKMessageType
 } from './types.js'
 
-// System prompt and templates
-export { SYSTEM_PROMPT, TASK_TEMPLATES } from './prompts/system.js'
+// System prompt
+export { SYSTEM_PROMPT } from './prompts/system.js'
 
 // MCP servers and tools
 export {

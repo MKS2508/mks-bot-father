@@ -5,20 +5,26 @@
  */
 
 export { botManagerServer } from './bot-manager.js'
+export { envManagerServer } from './env-manager.js'
 export { githubServer } from './github.js'
 export { coolifyServer } from './coolify.js'
 export { codeExecutorServer } from './code-executor.js'
+export { scaffolderServer } from './scaffolder.js'
 
 import { botManagerServer } from './bot-manager.js'
+import { envManagerServer } from './env-manager.js'
 import { githubServer } from './github.js'
 import { coolifyServer } from './coolify.js'
 import { codeExecutorServer } from './code-executor.js'
+import { scaffolderServer } from './scaffolder.js'
 
 export const mcpServers = {
   'bot-manager': botManagerServer,
+  'env-manager': envManagerServer,
   'github': githubServer,
   'coolify': coolifyServer,
-  'code-executor': codeExecutorServer
+  'code-executor': codeExecutorServer,
+  'scaffolder': scaffolderServer
 }
 
 export const allAllowedTools = [
@@ -28,6 +34,17 @@ export const allAllowedTools = [
   'mcp__bot-manager__list_bots',
   'mcp__bot-manager__configure_bot',
   'mcp__bot-manager__get_bot_token',
+  'mcp__bot-manager__get_bot_info',
+  'mcp__bot-manager__set_bot_name',
+  'mcp__bot-manager__check_username_available',
+
+  'mcp__env-manager__list_configured_bots',
+  'mcp__env-manager__get_active_bot',
+  'mcp__env-manager__set_active_bot',
+  'mcp__env-manager__read_bot_config',
+  'mcp__env-manager__update_bot_config',
+  'mcp__env-manager__delete_bot_config',
+  'mcp__env-manager__get_bot_metadata',
 
   'mcp__github__create_repo',
   'mcp__github__clone_repo',
@@ -62,5 +79,9 @@ export const allAllowedTools = [
   'mcp__code-executor__build_project',
   'mcp__code-executor__lint_project',
   'mcp__code-executor__type_check',
-  'mcp__code-executor__get_project_structure'
+  'mcp__code-executor__get_project_structure',
+
+  'mcp__scaffolder__scaffold_project',
+  'mcp__scaffolder__validate_project',
+  'mcp__scaffolder__update_project_files'
 ]
