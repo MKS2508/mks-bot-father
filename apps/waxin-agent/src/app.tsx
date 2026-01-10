@@ -6,6 +6,7 @@
 import { createCliRenderer, type TextareaRenderable } from '@opentui/core'
 import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
 import React, { useState, useCallback, useEffect, useRef } from 'react'
+import type { ToolExecution } from './types.js'
 import { useAgent } from './hooks/useAgent.js'
 import { log, tuiLogger } from './lib/json-logger.js'
 import { updateStats } from './hooks/useStats.js'
@@ -107,6 +108,7 @@ const AppContent = () => {
   const [isExecuting, setIsExecuting] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
+  const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
   const [currentAgent, setCurrentAgent] = useState<AgentType>('build')
   const [bannerConfig] = useState<BannerConfig>(DEFAULT_BANNER_CONFIG)
   const [activeQuestion, setActiveQuestion] = useState<UserQuestion | null>(null)
@@ -538,6 +540,23 @@ const AppContent = () => {
                   })
                 }
               }
+            },
+            onToolComplete: (execution: ToolExecution) => {
+              log.debug('TUI', 'Tool execution completed', {
+                tool: execution.tool,
+                duration: execution.duration,
+                success: execution.success
+              })
+              setToolExecutions((prev) => {
+                // Update existing execution or add new one
+                const existingIndex = prev.findIndex(e => e.tool === execution.tool && e.startTime === execution.startTime)
+                if (existingIndex >= 0) {
+                  const updated = [...prev]
+                  updated[existingIndex] = execution
+                  return updated
+                }
+                return [...prev, execution]
+              })
             }
           }
         )
@@ -652,25 +671,31 @@ const AppContent = () => {
         padding: 1,
       }}
     >
-      {hasMessages ? (
-        <ChatLayout
-          messages={messages}
-          isExecuting={isExecuting}
-          isStreaming={isStreaming}
-          currentAgentInfo={currentAgentInfo}
-          modelBadge={modelBadge}
-          showHeader={SHOW_HEADER}
-          waxinText={waxinText || 'WAXIN MK1 😈'}
-          isDialogOpen={isDialogOpen}
-        />
-      ) : (
-        <EmptyLayout
-          bannerConfig={bannerConfig}
-          isExecuting={isExecuting}
-          isStreaming={isStreaming}
-          isDialogOpen={isDialogOpen}
-        />
-      )}
+      {/* Content Area - flex: 1 limits growth so PromptBox has space */}
+      <box style={{ flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+        {hasMessages ? (
+          <ChatLayout
+            messages={messages}
+            isExecuting={isExecuting}
+            isStreaming={isStreaming}
+            currentAgentInfo={currentAgentInfo}
+            modelBadge={modelBadge}
+            showHeader={SHOW_HEADER}
+            waxinText={waxinText || 'WAXIN MK1 😈'}
+            isDialogOpen={isDialogOpen}
+            toolExecutions={toolExecutions}
+          />
+        ) : (
+          <EmptyLayout
+            bannerConfig={bannerConfig}
+            isExecuting={isExecuting}
+            isStreaming={isStreaming}
+            isDialogOpen={isDialogOpen}
+            showHeader={true}
+            waxinText={waxinText || 'WAXIN MK1 😈'}
+          />
+        )}
+      </box>
 
       {/* PromptBox - ALWAYS RENDERED (same instance, never unmounts) */}
       <PromptBox

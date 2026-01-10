@@ -142,7 +142,7 @@ export const Banner = ({ config, onImageError }: BannerProps) => {
       <box
         style={{
           flexDirection: 'column',
-          alignItems: 'flex-start',
+          alignItems: 'center',
         }}
       >
         {devilAsciiLines.map((line, i) => (

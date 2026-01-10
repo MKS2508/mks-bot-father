@@ -55,31 +55,36 @@ export function PromptBox({
         flexDirection: 'column',
         width: centered ? LAYOUT.PROMPT_WIDTH : LAYOUT.PROMPT_WIDTH_FULLSCREEN,
         alignItems: centered ? 'center' : 'stretch',
-        marginTop: centered ? LAYOUT.MARGIN_TOP * 2 : 0,
+        alignSelf: centered ? 'center' : undefined,
+        marginTop: centered ? LAYOUT.MARGIN_TOP : 0,
         marginBottom: LAYOUT.MARGIN_BOTTOM,
       }}
     >
-      {/* Subtitle centered above prompt - always show when exists */}
+      {/* Subtitle with cyberpunk decorators */}
       {bannerSubtitle && (
         <box style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 1 }}>
-          <text style={{ fg: THEME.textDim }}>
-            {bannerSubtitle}
-          </text>
+          <text style={{ fg: THEME.textMuted }}>╌╌ </text>
+          <text style={{ fg: THEME.textDim }}>{bannerSubtitle}</text>
+          <text style={{ fg: THEME.textMuted }}> ╌╌</text>
         </box>
       )}
 
+      {/* Main input container */}
       <box
         style={{
           border: true,
           borderStyle: 'rounded',
-          borderColor: textareaFocused ? THEME.cyan : (isExecuting ? THEME.textMuted : THEME.purple),
-          backgroundColor: THEME.bgPanel,
+          borderColor: textareaFocused ? THEME.cyan : (isExecuting ? THEME.yellow : THEME.purple),
+          backgroundColor: THEME.bgDark,
           padding: LAYOUT.PADDING,
           width: '100%',
         }}
       >
+        {/* Input row with glowing cursor indicator */}
         <box style={{ flexDirection: 'row', width: '100%' }}>
-          <text style={{ fg: THEME.magenta }}>▎ </text>
+          <text style={{ fg: textareaFocused ? THEME.cyan : THEME.magenta }}>
+            {textareaFocused ? '▌' : '▎'}{' '}
+          </text>
           <textarea
             key="prompt-textarea"
             ref={textareaRef}
@@ -91,30 +96,30 @@ export function PromptBox({
             style={{ width: '100%', height: LAYOUT.TEXTAREA_HEIGHT }}
           />
         </box>
-        <box style={{ flexDirection: 'row', marginTop: 1 }}>
+
+        {/* Status row with cyberpunk styling */}
+        <box style={{ flexDirection: 'row', marginTop: 1, alignItems: 'center' }}>
+          <text style={{ fg: THEME.textMuted }}>⟨ </text>
           <text style={{ fg: currentAgentInfo?.color ?? THEME.cyan }}>
             {currentAgentInfo?.label ?? 'Build'}
           </text>
-          <text style={{ fg: THEME.textDim }}> · {modelBadge}</text>
+          <text style={{ fg: THEME.textMuted }}> │ </text>
+          <text style={{ fg: THEME.textDim }}>{modelBadge}</text>
           {isExecuting && (
             <>
-              <text style={{ fg: THEME.yellow }}> ◐ </text>
-              <text style={{ fg: THEME.yellow }}>ejecutando...</text>
+              <text style={{ fg: THEME.textMuted }}> │ </text>
+              <text style={{ fg: THEME.yellow }}>◐ processing</text>
             </>
           )}
           {statsBadge && (
-            <text style={{ fg: THEME.textMuted }}> · {statsBadge}</text>
+            <>
+              <text style={{ fg: THEME.textMuted }}> │ </text>
+              <text style={{ fg: THEME.green }}>{statsBadge}</text>
+            </>
           )}
+          <text style={{ fg: THEME.textMuted }}> ⟩</text>
         </box>
       </box>
-      {centered && (
-        <box style={{ flexDirection: 'row', marginTop: 1, justifyContent: 'center' }}>
-          <text style={{ fg: THEME.textMuted }}>tab</text>
-          <text style={{ fg: THEME.textDim }}> switch agent  </text>
-          <text style={{ fg: THEME.textMuted }}>ctrl+c</text>
-          <text style={{ fg: THEME.textDim }}> quit</text>
-        </box>
-      )}
     </box>
   )
 }

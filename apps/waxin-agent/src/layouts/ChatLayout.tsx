@@ -11,7 +11,7 @@ import { StatusBar } from '../components/StatusBar.js'
 import { FloatingImage } from '../components/FloatingImage.js'
 import { log } from '../lib/json-logger.js'
 import { FLOATING_IMAGE_CONFIG } from '../types.js'
-import type { Message, AgentInfo } from '../types.js'
+import type { Message, AgentInfo, ToolExecution } from '../types.js'
 
 interface ChatLayoutProps {
   messages: Message[]
@@ -22,6 +22,7 @@ interface ChatLayoutProps {
   showHeader?: boolean
   waxinText?: string
   isDialogOpen?: boolean
+  toolExecutions?: ToolExecution[]
 }
 
 export function ChatLayout({
@@ -33,6 +34,7 @@ export function ChatLayout({
   showHeader = false,
   waxinText = 'WAXIN MK1 😈',
   isDialogOpen = false,
+  toolExecutions = [],
 }: ChatLayoutProps) {
   return (
     <>
@@ -40,17 +42,16 @@ export function ChatLayout({
       {showHeader && <Header waxinText={waxinText} />}
       <Topbar text="WAXIN MK1" font="banner" isStreaming={isStreaming} isExecuting={isExecuting} />
 
-      {/* Messages Area - EXPANDED */}
+      {/* Messages Area - flex: 1 to share space with siblings */}
       <box
         style={{
-          flexGrow: 1,
+          flex: 1,
           marginTop: 1,
           paddingLeft: 1,
           paddingRight: 1,
-          minHeight: '60%',
         }}
       >
-        <MessageList messages={messages} isExecuting={isExecuting} />
+        <MessageList messages={messages} isExecuting={isExecuting} toolExecutions={toolExecutions} />
       </box>
 
       {/* Thinking Indicator - animated spinner with personality words */}
