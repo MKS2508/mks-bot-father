@@ -11,7 +11,7 @@
     "logs:legacy": "bun run scripts/log-viewer.ts",
     "logs:tui": "bun run ../log-viewer/src/index.ts logs",
     "build": "tsgo",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsgo -p tsconfig.typecheck.json --noEmit",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"
   },
@@ -26,6 +26,7 @@
   "dependencies": {
     "@mks2508/better-logger": "^4.0.0",
     "@mks2508/bot-manager-agent": "workspace:*",
+    "@mks2508/shared-logger": "workspace:*",
     "@mks2508/no-throw": "^0.1.0",
     "@mks2508/opentui-image": "^0.2.3",
     "@opentui-ui/dialog": "^0.1.2",
