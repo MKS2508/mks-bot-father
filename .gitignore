@@ -33,3 +33,20 @@ opensrc/
 # Test environment files
 .env.test
 *.env.test
+/core/packages/main/coverage
+
+# TypeScript compiled files in src/
+**/src/**/*.js
+**/src/**/*.js.map
+**/src/**/*.d.ts
+**/src/**/*.d.ts.map
+**/scripts/**/*.js
+**/scripts/**/*.js.map
+**/scripts/**/*.d.ts
+**/scripts/**/*.d.ts.map
+
+# Vitest config compiled files
+vitest.*.config.d.ts
+vitest.*.config.d.ts.map
+vitest.*.config.js.map
+/apps/agent/coverage
