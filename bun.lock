@@ -15,10 +15,12 @@
         "@types/bun": "^1.1.15",
         "@types/node": "^22.10.5",
         "@typescript/native-preview": "^7.0.0-dev.20260106.1",
+        "@vitest/coverage-v8": "^4.0.16",
         "oxlint": "^0.11.1",
         "prettier": "^3.4.2",
         "prettier-plugin-organize-imports": "^4.1.0",
         "strip-ansi": "^7.1.2",
+        "vitest": "^4.0.16",
       },
     },
     "apps/agent": {
@@ -28,16 +30,16 @@
         "@anthropic-ai/claude-agent-sdk": "^0.2.1",
         "@mks2508/better-logger": "^4.0.0",
         "@mks2508/mks-bot-father": "workspace:*",
-        "@mks2508/no-throw": "^0.1.0",
+        "@mks2508/shared-logger": "workspace:*",
         "chalk": "^5.4.1",
         "dotenv": "^16.4.7",
         "ora": "^8.0.0",
-        "telegraf": "^4.16.0",
         "zod": "^3.24.1",
       },
       "devDependencies": {
         "@types/node": "^22.10.5",
         "@vitest/coverage-v8": "^4.0.16",
+        "@vitest/ui": "4.0.16",
         "typescript": "^5.9.0",
         "vitest": "^4.0.16",
       },
@@ -65,6 +67,22 @@
         "typescript": ">=5.0.0",
       },
     },
+    "apps/telegram-bot": {
+      "name": "@mks2508/telegram-bot",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mks2508/better-logger": "^4.0.0",
+        "@mks2508/bot-manager-agent": "workspace:*",
+        "@mks2508/telegram-message-builder": "0.3.1",
+        "dotenv": "^16.4.7",
+        "telegraf": "^4.16.0",
+        "zod": "^3.24.0",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.5",
+        "typescript": "^5.9.0",
+      },
+    },
     "apps/waxin-agent": {
       "name": "waxin-agent",
       "version": "0.1.0",
@@ -73,6 +91,7 @@
         "@mks2508/bot-manager-agent": "workspace:*",
         "@mks2508/no-throw": "^0.1.0",
         "@mks2508/opentui-image": "^0.2.3",
+        "@mks2508/shared-logger": "workspace:*",
         "@opentui-ui/dialog": "^0.1.2",
         "@opentui/core": "^0.1.70",
         "@opentui/react": "^0.1.70",
@@ -86,6 +105,7 @@
         "react": "^19.0.0",
         "react-reconciler": "^0.32.0",
         "terminal-link": "^5.0.0",
+        "zustand": "^5.0.9",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -120,6 +140,10 @@
         "typescript": "^5.9.0",
         "vitest": "^4.0.16",
       },
+    },
+    "core/packages/shared-logger": {
+      "name": "@mks2508/shared-logger",
+      "version": "1.0.0",
     },
   },
   "packages": {
@@ -381,7 +405,13 @@
 
     "@mks2508/opentui-image": ["@mks2508/opentui-image@0.2.3", "", { "dependencies": { "@opentui/core": "^0.1.70", "gifuct-js": "^2.1.2", "jimp": "^1.6.0" }, "optionalDependencies": { "@silvia-odwyer/photon-node": "^0.3.0", "sharp": "^0.33.0" }, "peerDependencies": { "@opentui/react": "^0.1.70", "typescript": "^5" }, "optionalPeers": ["@opentui/react"] }, "sha512-elnIR/ChrMA5eM6GGYFQfO7gkkcIG2vVFgW5vlhgX6stfZX2oiWl7CVSi16sncvdwKxM/9/O8v3Uy0VAkDbK/g=="],
 
+    "@mks2508/shared-logger": ["@mks2508/shared-logger@workspace:core/packages/shared-logger"],
+
+    "@mks2508/telegram-bot": ["@mks2508/telegram-bot@workspace:apps/telegram-bot"],
+
     "@mks2508/telegram-bot-manager": ["@mks2508/telegram-bot-manager@0.1.1", "", { "dependencies": { "@inquirer/prompts": "^7.5.3", "@mks2508/better-logger": "^4.0.0", "big-integer": "^1.6.52", "chalk": "^5.4.1", "commander": "^14.0.0", "ora": "^8.0.0", "telegraf": "^4.16.3", "telegram": "^2.26.16", "zod": "^3.24.0" }, "bin": { "telegram-bot-manager": "dist/bin/cli.js", "tbm": "dist/bin/cli.js" } }, "sha512-j+QLRMuDT5SUV+RHIvCn2LmSpV/pdkfPlI5SMhaxzTKdjZRc+Qj//EIJ9mC0OpmwrY5yO3o92VBoQ67YoPuP4g=="],
+
+    "@mks2508/telegram-message-builder": ["@mks2508/telegram-message-builder@0.3.1", "", {}, "sha512-i/BdbxVq13l8XzCUq8jMkFfYjrTXiCdErpzo9tEazLLqqEucAm2aY9HE5i8U+15mEWeSV4D6I9gfU8a5dSn1Cw=="],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 
@@ -1090,6 +1120,8 @@
     "yoga-layout": ["yoga-layout@3.2.1", "", {}, "sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ=="],
 
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "zustand": ["zustand@5.0.9", "", { "peerDependencies": { "@types/react": ">=18.0.0", "immer": ">=9.0.6", "react": ">=18.0.0", "use-sync-external-store": ">=1.2.0" }, "optionalPeers": ["@types/react", "immer", "react", "use-sync-external-store"] }, "sha512-ALBtUj0AfjJt3uNRQoL1tL2tMvj6Gp/6e39dnfT6uzpelGru8v1tPOGBzayOWbPJvujM8JojDk3E1LxeFisBNg=="],
 
     "@changesets/apply-release-plan/prettier": ["prettier@2.8.8", "", { "bin": { "prettier": "bin-prettier.js" } }, "sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q=="],
 

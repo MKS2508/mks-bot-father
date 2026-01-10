@@ -1,0 +1,32 @@
+{
+  "name": "@mks2508/shared-logger",
+  "version": "1.0.0",
+  "description": "Shared structured logging library for mks-bot-father ecosystem",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsgo -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "keywords": [
+    "logging",
+    "json",
+    "structured",
+    "logger"
+  ],
+  "author": "MKS2508",
+  "license": "MIT",
+  "dependencies": {},
+}

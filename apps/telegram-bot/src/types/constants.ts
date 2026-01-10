@@ -1,0 +1,50 @@
+export const TimeConstants = {
+  SECOND: 1_000,
+  MINUTE: 60_000,
+  HOUR: 3_600_000,
+  DAY: 86_400_000,
+} as const
+
+export const BotTimeouts = {
+  STARTUP: 30_000,
+  STOP: 10_000,
+  COMMAND_RESPONSE: 5_000,
+  WEBHOOK_SETUP: 10_000,
+  LOG_BUFFER_FLUSH: 5_000,
+  POLLING_TIMEOUT: 20_000,
+} as const
+
+export const BotLimits = {
+  LOG_BUFFER_SIZE: 10,
+  MAX_MESSAGE_LENGTH: 4_096,
+  MAX_CAPTION_LENGTH: 1_024,
+  MAX_RETRIES: 3,
+  RATE_LIMIT_PER_MINUTE: 60,
+  MAX_WEBHOOK_CONNECTIONS: 40,
+} as const
+
+export const EnvKeys = {
+  TG_BOT_TOKEN: 'TELEGRAM_BOT_TOKEN',
+  TG_MODE: 'TG_MODE',
+  TG_WEBHOOK_URL: 'TG_WEBHOOK_URL',
+  TG_WEBHOOK_SECRET: 'TG_WEBHOOK_SECRET',
+  TG_LOG_CHAT_ID: 'TG_LOG_CHAT_ID',
+  TG_LOG_TOPIC_ID: 'TG_LOG_TOPIC_ID',
+  TG_CONTROL_CHAT_ID: 'TG_CONTROL_CHAT_ID',
+  TG_CONTROL_TOPIC_ID: 'TG_CONTROL_TOPIC_ID',
+  TG_AUTHORIZED_USER_IDS: 'ALLOWED_TELEGRAM_USERS',
+  LOG_LEVEL: 'LOG_LEVEL',
+  TG_DEBUG: 'TG_DEBUG',
+  TG_RATE_LIMIT: 'TG_RATE_LIMIT',
+  TG_TIMEOUT: 'TG_TIMEOUT',
+  TG_MAX_RETRIES: 'TG_MAX_RETRIES',
+  TG_COMMAND_PREFIX: 'TG_COMMAND_PREFIX',
+} as const
+
+export function getEnvTimeout(timeout: number): number {
+  return timeout || BotTimeouts.STARTUP
+}
+
+export function getEnvLimit(limit?: number): number {
+  return limit || BotLimits.RATE_LIMIT_PER_MINUTE
+}

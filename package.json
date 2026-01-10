@@ -16,6 +16,7 @@
     "format:check": "prettier --check .",
     "typecheck": "bun run --filter '*' typecheck",
     "clean": "rm -rf node_modules **/node_modules **/dist **/.turbo",
+    "logs:tui": "bun run apps/log-viewer/src/index.ts apps/waxin-agent/logs",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish"
@@ -26,9 +27,12 @@
     "@types/bun": "^1.1.15",
     "@types/node": "^22.10.5",
     "@typescript/native-preview": "^7.0.0-dev.20260106.1",
+    "@vitest/coverage-v8": "^4.0.16",
     "oxlint": "^0.11.1",
     "prettier": "^3.4.2",
-    "prettier-plugin-organize-imports": "^4.1.0"
+    "prettier-plugin-organize-imports": "^4.1.0",
+    "strip-ansi": "^7.1.2",
+    "vitest": "^4.0.16"
   },
   "dependencies": {
     "@mks2508/better-logger": "^4.0.0",

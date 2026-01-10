@@ -1,6 +1,146 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Monorepo Structure
+
+This is a **Bun workspace monorepo** with three main components:
+
+```
+mks-bot-father/
+├── core/packages/main/           # @mks2508/mks-bot-father (published library + CLI)
+├── apps/
+│   ├── agent/                    # Bot Manager Agent (Claude Agent SDK + MCP tools)
+│   ├── waxin-agent/              # TUI for agent debugging/testing (OpenTUI)
+│   └── log-viewer/               # JSONL log viewer utility
+└── package.json                  # Root workspace config
+```
+
+### Component Overview
+
+| Component | Purpose | Main Tech |
+|-----------|---------|-----------|
+| `core/packages/main` | Published npm package for bot automation pipeline | telegram-bot-manager, arktype |
+| `apps/agent` | AI agent with MCP tools for bot management | Claude Agent SDK, telegraf |
+| `apps/waxin-agent` | Terminal UI for interactive agent debugging | OpenTUI, React, zustand |
+| `apps/log-viewer` | Standalone JSONL log viewer | Bun, CLI utilities |
+
+### Workspace Dependencies
+
+Apps reference the main package using `workspace:*`:
+- `agent` depends on `@mks2508/mks-bot-father@workspace:*`
+- `waxin-agent` depends on `@mks2508/bot-manager-agent@workspace:*`
+
+---
+
+## Root Commands
+
+```bash
+# Install all dependencies (handles workspace linking)
+bun install
+
+# Run commands across all packages
+bun run --filter '*' dev          # Start dev mode for all packages
+bun run --filter '*' build        # Build all packages
+bun run --filter '*' typecheck    # Type check all packages
+
+# Linting (root level)
+bun run lint                      # oxlint
+bun run lint:fix                  # oxlint --fix
+
+# Log viewer
+bun run logs:tui                  # View waxin-agent logs in TUI
+```
+
+---
+
+## Package-Specific Documentation
+
+For detailed information about each component, see:
+- **Main Package**: `core/packages/main/CLAUDE.md` - Pipeline automation, ConfigManager, GitHubManager, CoolifyManager
+- **Agent**: `apps/agent/CLAUDE.md` - Claude Agent SDK integration, MCP tools, subagents
+- **WAXIN Agent**: `apps/waxin-agent/CLAUDE.md` - OpenTUI application, React hooks, shortcuts system
+
+---
+
+## Key Technologies Across Monorepo
+
+- **Runtime**: Bun (package manager and runtime)
+- **Language**: TypeScript (ES2022 target, strict mode)
+- **Testing**: Vitest (globally installed, use `vitest run` not `bun test`)
+- **Logging**: `@mks2508/better-logger` v4.0.0 (cyberpunk preset)
+- **Schema**: arktype (main package), zod (agent)
+- **Build**: tsgo for library, bun build for CLIs
+
+---
+
+## Development Workflow
+
+### Adding Dependencies
+
+```bash
+# Add to root (shared)
+bun add <package>
+
+# Add to specific package
+bun --filter <package-name> add <package>
+
+# Add dev dependency
+bun add -d <package>
+```
+
+### Running Tests
+
+```bash
+# From root - run all tests
+vitest run --config vitest.config.ts
+
+# From package directory
+cd apps/agent && vitest run
+
+# Run specific test file
+vitest run apps/agent/src/tools/__tests__/coolify.test.ts
+
+# Coverage
+vitest run --coverage
+```
+
+### Type Checking
+
+Each package has its own `typecheck` script:
+```bash
+bun run --filter '*' typecheck
+```
+
+---
+
+## Critical Architecture Notes
+
+### MCP Tools Pattern
+
+The agent uses custom MCP servers (Model Context Protocol) in `apps/agent/src/tools/`:
+- `bot-manager.ts` - BotFather automation
+- `github.ts` - GitHub operations
+- `coolify.ts` - Coolify deployment
+- `code-executor.ts` - Shell command execution
+
+These are registered in `tools/index.ts` and exposed to the Claude Agent SDK.
+
+### Workspace Resolution
+
+When developing across packages:
+1. Changes in `core/packages/main` require rebuilding: `cd core/packages/main && bun run build`
+2. Apps reference the built `dist/` output, not source files
+3. Use `workspace:*` in package.json for internal dependencies
+
+### Shared Configuration
+
+Root `tsconfig.json` provides base configuration; packages extend it:
+- `noUncheckedIndexedAccess: false` - Relaxed for array access
+- `exactOptionalPropertyTypes: false` - Relaxed for optional props
+- `strict: true` - Full strict mode enabled
+
+---
 
 ## Project Overview
 
@@ -288,6 +428,50 @@ if (result instanceof type.errors) {
 }
 // result is now typed as Config
 ```
+
+## Claude Agent SDK Reference
+
+Este proyecto usa el Claude Agent SDK para el sistema de agentes.
+
+### URLs Oficiales
+- [SDK Overview](https://platform.claude.com/docs/en/agent-sdk/overview)
+- [TypeScript Reference](https://platform.claude.com/docs/en/agent-sdk/typescript)
+- [Building Agents Blog](https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk)
+- [GitHub SDK](https://github.com/anthropics/claude-agent-sdk-typescript)
+
+### Documentación Detallada
+Ver: `apps/agent/docs/claude-agent-sdk-reference.md`
+
+### Patrones Clave
+
+```typescript
+// Query básico con streaming
+import { query } from "@anthropic-ai/claude-agent-sdk"
+
+for await (const message of query({
+  prompt: "Task",
+  options: {
+    model: "claude-sonnet-4-5",
+    cwd: process.cwd(),
+    allowedTools: ["Read", "Edit", "Bash", "Task"],  // Task para subagentes
+    maxBudgetUsd: 10.0
+  }
+})) {
+  // Capturar session_id siempre
+  if (message.type === 'system' && message.subtype === 'init') {
+    sessionId = message.session_id
+  }
+  // Verificar permission_denials
+  if (message.type === 'result' && message.permission_denials?.length) {
+    console.warn('Denials:', message.permission_denials)
+  }
+}
+```
+
+### Archivos del Agent
+- `/apps/agent/src/agent.ts` - Orquestador principal
+- `/apps/agent/src/tools/` - MCP servers (bot-manager, github, coolify, code-executor)
+- `/apps/agent/src/subagents/` - Definición de subagentes
 
 ## License
 

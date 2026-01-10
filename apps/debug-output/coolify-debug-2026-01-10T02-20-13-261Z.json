@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-01-10T02:20:13.261Z",
+  "coolifyUrl": "https://coolify.mks2508.dev",
+  "results": [
+    {
+      "method": "listServers",
+      "endpoint": "/servers",
+      "httpMethod": "GET",
+      "responseStatus": 0,
+      "responseHeaders": {},
+      "responseBody": null,
+      "duration": 71,
+      "error": "Unable to connect. Is the computer able to access the url?"
+    },
+    {
+      "method": "listApplications",
+      "endpoint": "/applications",
+      "httpMethod": "GET",
+      "responseStatus": 0,
+      "responseHeaders": {},
+      "responseBody": null,
+      "duration": 1,
+      "error": "Was there a typo in the url or port?"
+    },
+    {
+      "method": "getInvalidApp",
+      "endpoint": "/applications/non-existent-uuid-12345",
+      "httpMethod": "GET",
+      "responseStatus": 0,
+      "responseHeaders": {},
+      "responseBody": null,
+      "duration": 1,
+      "error": "Unable to connect. Is the computer able to access the url?"
+    },
+    {
+      "method": "getInvalidServer",
+      "endpoint": "/servers/non-existent-uuid-12345",
+      "httpMethod": "GET",
+      "responseStatus": 0,
+      "responseHeaders": {},
+      "responseBody": null,
+      "duration": 0,
+      "error": "Was there a typo in the url or port?"
+    },
+    {
+      "method": "listProjects",
+      "endpoint": "/projects",
+      "httpMethod": "GET",
+      "responseStatus": 0,
+      "responseHeaders": {},
+      "responseBody": null,
+      "duration": 0,
+      "error": "Unable to connect. Is the computer able to access the url?"
+    },
+    {
+      "method": "listTeams",
+      "endpoint": "/teams",
+      "httpMethod": "GET",
+      "responseStatus": 0,
+      "responseHeaders": {},
+      "responseBody": null,
+      "duration": 0,
+      "error": "Was there a typo in the url or port?"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "successful": 0,
+    "failed": 6
+  }
+}
