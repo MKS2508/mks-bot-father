@@ -40,7 +40,7 @@ export const log = {
   },
 
   tool(name: string, input?: unknown) {
-    logger.tool(name, { hasInput: !!input } })
+    logger.tool(name, { hasInput: !!input })
   },
 
   toolResult(tool: string, result: unknown, success = true, durationMs?: number) {
