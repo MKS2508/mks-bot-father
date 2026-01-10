@@ -7,6 +7,7 @@ import { memo } from 'react'
 import { THEME } from '../theme/colors.js'
 import { ChatBubble } from './ChatBubble.js'
 import { CompactToolResult } from './ToolResultCard.js'
+import { ToolProgress } from './ToolProgress.js'
 import type { Message } from '../types.js'
 import type { ToolExecution } from '../types.js'
 
@@ -51,10 +52,25 @@ export const MessageList = memo(function MessageList({ messages, isExecuting, to
           // Try to find matching tool execution
           const toolExec = toolExecutions.find(e => e.tool === msg.content)
           if (toolExec) {
+            const isPending = toolExec.endTime === undefined
+            // Use ToolProgress for pending executions (shows progress bar)
+            // Use CompactToolResult for completed executions (compact one-line)
+            if (isPending) {
+              return (
+                <ToolProgress
+                  key={`tool-${msg.timestamp.getTime()}-${idx}`}
+                  execution={toolExec}
+                  width={60}
+                  showInput={true}
+                  compact={false}
+                />
+              )
+            }
             return (
               <CompactToolResult
                 key={`tool-${msg.timestamp.getTime()}-${idx}`}
                 execution={toolExec}
+                showInput={true}
               />
             )
           }

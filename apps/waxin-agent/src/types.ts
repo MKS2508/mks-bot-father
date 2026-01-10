@@ -25,6 +25,16 @@ export interface AgentCallbacks {
 }
 
 /**
+ * Progress update for tool execution.
+ */
+export interface ToolProgressUpdate {
+  timestamp: number
+  progress: number
+  message: string
+  step?: string
+}
+
+/**
  * Tool execution tracking.
  */
 export interface ToolExecution {
@@ -36,6 +46,10 @@ export interface ToolExecution {
   success?: boolean
   result?: unknown
   error?: string
+  /** Unique block ID from agent SDK */
+  blockId?: string
+  /** Progress updates during execution */
+  progressUpdates?: ToolProgressUpdate[]
 }
 
 /**

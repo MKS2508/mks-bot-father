@@ -10,6 +10,7 @@ import { isOk, isErr } from '@mks2508/no-throw'
 import { getGitHubService } from '@mks2508/mks-bot-father'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { createToolLogger } from '../utils/tool-logger.js'
 
 const execAsync = promisify(exec)
 
@@ -46,6 +47,13 @@ Supports both personal repos and organization repos.`,
           .describe('Template repo name')
       },
       async (args) => {
+        const log = createToolLogger('github.create_repo')
+        const startTime = log.start({
+          name: args.name,
+          private: args.private,
+          org: args.org,
+          hasTemplate: !!(args.templateOwner && args.templateRepo)
+        })
         const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
 
         try {
@@ -53,6 +61,7 @@ Supports both personal repos and organization repos.`,
           const initResult = await github.init()
 
           if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
             return {
               content: [{
                 type: 'text' as const,
@@ -74,6 +83,11 @@ Supports both personal repos and organization repos.`,
           })
 
           if (isOk(result)) {
+            log.success(startTime, {
+              repoUrl: result.value.repoUrl,
+              cloneUrl: result.value.cloneUrl,
+              progressSteps: progressEvents.length
+            })
             return {
               content: [{
                 type: 'text' as const,
@@ -86,6 +100,7 @@ Supports both personal repos and organization repos.`,
               }]
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'create' })
             return {
               content: [{
                 type: 'text' as const,
@@ -95,6 +110,7 @@ Supports both personal repos and organization repos.`,
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,
@@ -120,6 +136,12 @@ Uses gh CLI for authentication.`,
           .describe('Target directory name (defaults to repo name)')
       },
       async (args) => {
+        const log = createToolLogger('github.clone_repo')
+        const startTime = log.start({
+          repoUrl: args.repoUrl,
+          targetDir: args.targetDir
+        })
+
         try {
           const repoName = args.repoUrl.split('/').pop()?.replace('.git', '') || 'repo'
           const targetDir = args.targetDir || repoName
@@ -130,6 +152,10 @@ Uses gh CLI for authentication.`,
             { timeout: 60000 }
           )
 
+          log.success(startTime, {
+            path: fullPath,
+            repoName
+          })
           return {
             content: [{
               type: 'text' as const,
@@ -141,6 +167,7 @@ Uses gh CLI for authentication.`,
             }]
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'clone' })
           return {
             content: [{
               type: 'text' as const,
@@ -176,6 +203,14 @@ Commits and pushes changes before creating the PR.`,
           .describe('Create as draft PR')
       },
       async (args) => {
+        const log = createToolLogger('github.create_pr')
+        const startTime = log.start({
+          repoPath: args.repoPath,
+          title: args.title,
+          baseBranch: args.baseBranch,
+          draft: args.draft
+        })
+
         try {
           const draftFlag = args.draft ? '--draft' : ''
           const branchFlag = args.branch ? `--head ${args.branch}` : ''
@@ -188,6 +223,11 @@ Commits and pushes changes before creating the PR.`,
 
           const prUrl = stdout.trim()
 
+          log.success(startTime, {
+            prUrl,
+            title: args.title,
+            baseBranch: args.baseBranch
+          })
           return {
             content: [{
               type: 'text' as const,
@@ -199,6 +239,7 @@ Commits and pushes changes before creating the PR.`,
             }]
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'create_pr' })
           return {
             content: [{
               type: 'text' as const,
@@ -225,6 +266,13 @@ Creates a new branch if specified, otherwise pushes to current branch.`,
           .describe('Create and switch to new branch before committing')
       },
       async (args) => {
+        const log = createToolLogger('github.commit_and_push')
+        const startTime = log.start({
+          repoPath: args.repoPath,
+          newBranch: args.newBranch,
+          messageLength: args.message.length
+        })
+
         try {
           const commands = [`cd "${args.repoPath}"`]
 
@@ -244,6 +292,10 @@ Creates a new branch if specified, otherwise pushes to current branch.`,
             { timeout: 60000 }
           )
 
+          log.success(startTime, {
+            branch: args.newBranch || 'current',
+            messageLength: args.message.length
+          })
           return {
             content: [{
               type: 'text' as const,
@@ -256,6 +308,7 @@ Creates a new branch if specified, otherwise pushes to current branch.`,
             }]
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'commit_push' })
           return {
             content: [{
               type: 'text' as const,
@@ -277,12 +330,16 @@ Returns repo details, default branch, open issues/PRs count, etc.`,
           .describe('Repository in owner/repo format')
       },
       async (args) => {
+        const log = createToolLogger('github.get_repo_info')
+        const startTime = log.start({ repo: args.repo })
+
         try {
           const { stdout } = await execAsync(
             `gh repo view ${args.repo} --json name,description,url,defaultBranchRef,isPrivate,issues,pullRequests`,
             { timeout: 15000 }
           )
 
+          log.success(startTime, { repo: args.repo })
           return {
             content: [{
               type: 'text' as const,
@@ -290,6 +347,7 @@ Returns repo details, default branch, open issues/PRs count, etc.`,
             }]
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'get_info' })
           return {
             content: [{
               type: 'text' as const,
@@ -310,11 +368,15 @@ Useful for determining the default repository owner before creating repos.`,
         empty: z.object({}).describe('No parameters required')
       },
       async (args) => {
+        const log = createToolLogger('github.get_authenticated_user')
+        const startTime = log.start({})
+
         try {
           const github = getGitHubService()
           const initResult = await github.init()
 
           if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
             return {
               content: [{
                 type: 'text' as const,
@@ -327,6 +389,7 @@ Useful for determining the default repository owner before creating repos.`,
           const result = await github.getAuthenticatedUser()
 
           if (isOk(result)) {
+            log.success(startTime, { username: result.value })
             return {
               content: [{
                 type: 'text' as const,
@@ -337,6 +400,7 @@ Useful for determining the default repository owner before creating repos.`,
               }]
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'get_user' })
             return {
               content: [{
                 type: 'text' as const,
@@ -346,6 +410,7 @@ Useful for determining the default repository owner before creating repos.`,
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,
@@ -367,11 +432,15 @@ Returns true if the name belongs to an organization, false if it's a personal ac
           .describe('Account name to check')
       },
       async (args) => {
+        const log = createToolLogger('github.is_organization')
+        const startTime = log.start({ name: args.name })
+
         try {
           const github = getGitHubService()
           const initResult = await github.init()
 
           if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
             return {
               content: [{
                 type: 'text' as const,
@@ -384,6 +453,7 @@ Returns true if the name belongs to an organization, false if it's a personal ac
           const result = await github.isOrganization(args.name)
 
           if (isOk(result)) {
+            log.success(startTime, { name: args.name, isOrganization: result.value })
             return {
               content: [{
                 type: 'text' as const,
@@ -395,6 +465,7 @@ Returns true if the name belongs to an organization, false if it's a personal ac
               }]
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'check' })
             return {
               content: [{
                 type: 'text' as const,
@@ -404,6 +475,7 @@ Returns true if the name belongs to an organization, false if it's a personal ac
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,
@@ -427,11 +499,15 @@ Useful for validating before creating or cloning repositories.`,
           .describe('Repository name')
       },
       async (args) => {
+        const log = createToolLogger('github.repo_exists')
+        const startTime = log.start({ owner: args.owner, repo: args.repo })
+
         try {
           const github = getGitHubService()
           const initResult = await github.init()
 
           if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
             return {
               content: [{
                 type: 'text' as const,
@@ -444,6 +520,10 @@ Useful for validating before creating or cloning repositories.`,
           const result = await github.repoExists(args.owner, args.repo)
 
           if (isOk(result)) {
+            log.success(startTime, {
+              repo: `${args.owner}/${args.repo}`,
+              exists: result.value
+            })
             return {
               content: [{
                 type: 'text' as const,
@@ -455,6 +535,7 @@ Useful for validating before creating or cloning repositories.`,
               }]
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'check' })
             return {
               content: [{
                 type: 'text' as const,
@@ -464,6 +545,7 @@ Useful for validating before creating or cloning repositories.`,
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,

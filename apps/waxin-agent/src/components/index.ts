@@ -9,6 +9,7 @@ export { Header } from './Header.js'
 export { StatsBar, StatsBarMinimal } from './StatsBar.js'
 export { ProgressBar } from './ProgressBar.js'
 export { ToolResultCard, CompactToolResult } from './ToolResultCard.js'
+export { ToolProgress, ToolProgressList } from './ToolProgress.js'
 
 // New extracted components
 export { PromptBox } from './PromptBox.js'

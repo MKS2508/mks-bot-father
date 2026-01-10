@@ -247,32 +247,67 @@ export class AgentBridge {
           const execution: ToolExecution = {
             tool: block.name,
             input: block.input,
-            startTime: Date.now()
+            startTime: Date.now(),
+            blockId: toolId,
+            progressUpdates: [{
+              timestamp: Date.now(),
+              progress: 0,
+              message: `Starting ${block.name}...`,
+              step: 'init'
+            }]
           }
           this.toolExecutions.set(toolId, execution)
           log.debug('TOOL', `Tool execution started: ${block.name}`, { toolId })
+
+          // Emit progress for tool start
+          callbacks.onProgress?.(10, `Executing: ${block.name}`, 'tool_start')
         } else if (block.type === 'tool_result' && block.id) {
           // Track tool execution completion
           const execution = this.toolExecutions.get(block.id)
           if (execution) {
             const endTime = Date.now()
             const duration = endTime - execution.startTime
+            const isSuccess = !block.isError
+
+            // Add completion progress update
+            const progressUpdates = [
+              ...(execution.progressUpdates || []),
+              {
+                timestamp: endTime,
+                progress: 100,
+                message: isSuccess
+                  ? `✓ ${execution.tool} completed (${duration}ms)`
+                  : `✗ ${execution.tool} failed`,
+                step: 'done'
+              }
+            ]
 
             const completedExecution: ToolExecution = {
               ...execution,
               endTime,
               duration,
-              success: !block.isError,
+              success: isSuccess,
               result: block.result,
-              error: block.isError ? (typeof block.content === 'string' ? block.content : 'Tool execution failed') : undefined
+              error: block.isError ? (typeof block.result === 'string' ? block.result : 'Tool execution failed') : undefined,
+              progressUpdates
             }
 
             this.toolExecutions.set(block.id, completedExecution)
-            log.debug('TOOL', `Tool execution completed: ${completedExecution.tool}`, {
+            log.info('TOOL', `Tool execution completed: ${completedExecution.tool}`, {
               toolId: block.id,
               duration,
-              success: completedExecution.success
+              success: completedExecution.success,
+              hasResult: block.result !== undefined
             })
+
+            // Emit progress for tool completion
+            callbacks.onProgress?.(
+              isSuccess ? 100 : 0,
+              isSuccess
+                ? `✓ ${execution.tool} completed (${duration}ms)`
+                : `✗ ${execution.tool} failed: ${completedExecution.error?.slice(0, 50)}`,
+              'tool_complete'
+            )
 
             callbacks.onToolComplete?.(completedExecution)
           }

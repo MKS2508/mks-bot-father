@@ -4,6 +4,8 @@
  * @module
  */
 
+import type { IProgressCallback } from './progress.types.js'
+
 /**
  * Options for running the full pipeline.
  */
@@ -24,6 +26,8 @@ export interface IPipelineOptions {
   coolifyServer?: string
   /** Coolify destination UUID */
   coolifyDestination?: string
+  /** Progress callback for pipeline steps */
+  onProgress?: IProgressCallback
 }
 
 /**

@@ -31,6 +31,10 @@ interface ToolResultCardProps {
   showFullResult?: boolean
   /** Max result length when truncated (default: 100) */
   maxResultLength?: number
+  /** Show input params (default: true) */
+  showInput?: boolean
+  /** Show progress updates (default: false) */
+  showProgress?: boolean
 }
 
 /**
@@ -50,6 +54,29 @@ function truncateResult(result: unknown, maxLength: number): string {
   const str = typeof result === 'string' ? result : JSON.stringify(result)
   if (str.length <= maxLength) return str
   return str.slice(0, maxLength) + '...'
+}
+
+/**
+ * Format input params for display
+ */
+function formatInput(input: unknown, maxLength: number = 60): string {
+  if (input === null || input === undefined) return ''
+  if (typeof input === 'object') {
+    const keys = Object.keys(input as object)
+    if (keys.length === 0) return ''
+    const pairs = keys.slice(0, 3).map(k => {
+      const val = (input as Record<string, unknown>)[k]
+      const valStr = typeof val === 'string'
+        ? val.length > 20 ? val.slice(0, 20) + '...' : val
+        : JSON.stringify(val)
+      return `${k}=${valStr}`
+    })
+    const more = keys.length > 3 ? ` +${keys.length - 3} more` : ''
+    const result = pairs.join(', ') + more
+    return result.length > maxLength ? result.slice(0, maxLength) + '...' : result
+  }
+  const str = String(input)
+  return str.length > maxLength ? str.slice(0, maxLength) + '...' : str
 }
 
 /**
@@ -74,16 +101,20 @@ export const ToolResultCard = ({
   execution,
   width = 60,
   showFullResult = false,
-  maxResultLength = 100
+  maxResultLength = 100,
+  showInput = true,
+  showProgress = false
 }: ToolResultCardProps) => {
   const {
     tool,
+    input,
     startTime,
     endTime,
     duration,
     success,
     result,
-    error
+    error,
+    progressUpdates
   } = execution
 
   const isPending = endTime === undefined
@@ -95,6 +126,9 @@ export const ToolResultCard = ({
   const durationText = duration !== undefined
     ? formatDuration(duration)
     : (isPending ? `${Date.now() - startTime}ms` : '')
+
+  // Format input
+  const inputText = showInput ? formatInput(input) : ''
 
   // Format result
   let resultText: string
@@ -109,6 +143,9 @@ export const ToolResultCard = ({
   } else {
     resultText = 'No output'
   }
+
+  // Get latest progress update
+  const latestProgress = progressUpdates?.length ? progressUpdates[progressUpdates.length - 1] : null
 
   return (
     <box
@@ -145,6 +182,36 @@ export const ToolResultCard = ({
         )}
       </box>
 
+      {/* Input row (if showInput and has input) */}
+      {inputText && (
+        <box style={{ flexDirection: 'row', marginTop: 0 }}>
+          <text style={{ fg: THEME.textMuted }}>
+            {'│ '}
+          </text>
+          <text style={{ fg: THEME.magenta }}>
+            {'→ '}
+          </text>
+          <text style={{ fg: THEME.textDim }}>
+            {inputText}
+          </text>
+        </box>
+      )}
+
+      {/* Progress row (if pending and has progress) */}
+      {isPending && latestProgress && (
+        <box style={{ flexDirection: 'row', marginTop: 0 }}>
+          <text style={{ fg: THEME.textMuted }}>
+            {'│ '}
+          </text>
+          <text style={{ fg: THEME.blue }}>
+            {`[${latestProgress.progress}%] `}
+          </text>
+          <text style={{ fg: THEME.text }}>
+            {latestProgress.message}
+          </text>
+        </box>
+      )}
+
       {/* Result row */}
       <box style={{ flexDirection: 'row', marginTop: 0 }}>
         <text style={{ fg: THEME.textMuted }}>
@@ -154,6 +221,22 @@ export const ToolResultCard = ({
           {resultText}
         </text>
       </box>
+
+      {/* Progress history (if showProgress and has multiple updates) */}
+      {showProgress && progressUpdates && progressUpdates.length > 1 && (
+        <box style={{ flexDirection: 'column', marginTop: 0 }}>
+          {progressUpdates.slice(-3).map((update, i) => (
+            <box key={i} style={{ flexDirection: 'row' }}>
+              <text style={{ fg: THEME.textMuted }}>
+                {'│  '}
+              </text>
+              <text style={{ fg: THEME.textDim }}>
+                {`${update.progress}% - ${update.message}`}
+              </text>
+            </box>
+          ))}
+        </box>
+      )}
 
       {/* Bottom border */}
       <text style={{ fg: statusColor as any }}>
@@ -169,22 +252,34 @@ export const ToolResultCard = ({
 interface CompactToolResultProps {
   execution: ToolExecution
   showDuration?: boolean
+  showInput?: boolean
 }
 
 export const CompactToolResult = ({
   execution,
-  showDuration = true
+  showDuration = true,
+  showInput = true
 }: CompactToolResultProps) => {
   const {
     tool,
+    input,
     duration,
     success,
-    error
+    error,
+    progressUpdates
   } = execution
 
   const isPending = duration === undefined
   const statusIcon = isPending ? '⟳' : (success ? '✓' : '✗')
   const statusColor = isPending ? THEME.yellow : (success ? THEME.green : THEME.red)
+
+  // Format input (compact version - just first param)
+  const inputText = showInput ? formatInput(input, 30) : ''
+
+  // Get latest progress
+  const latestProgress = isPending && progressUpdates?.length
+    ? progressUpdates[progressUpdates.length - 1]
+    : null
 
   return (
     <box style={{ flexDirection: 'row' }}>
@@ -195,11 +290,27 @@ export const CompactToolResult = ({
       <text style={{ fg: THEME.cyan }}>
         {tool}
       </text>
+      {inputText && (
+        <>
+          <text style={{ fg: THEME.textMuted }}> </text>
+          <text style={{ fg: THEME.textDim }}>
+            ({inputText})
+          </text>
+        </>
+      )}
       {showDuration && duration !== undefined && (
         <>
           <text style={{ fg: THEME.textMuted }}> </text>
           <text style={{ fg: THEME.textDim }}>
             {formatDuration(duration)}
+          </text>
+        </>
+      )}
+      {latestProgress && (
+        <>
+          <text style={{ fg: THEME.textMuted }}> </text>
+          <text style={{ fg: THEME.blue }}>
+            {`${latestProgress.progress}%`}
           </text>
         </>
       )}

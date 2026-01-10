@@ -188,10 +188,17 @@ export class Pipeline {
       return err(initResult.error)
     }
 
+    // Create progress callback that maps service progress (0-100) to pipeline step range (0-25%)
+    const stepProgress = options.onProgress
+      ? (pct: number, msg: string, step?: string) => {
+          options.onProgress?.(Math.round(pct * 0.25), `[BotFather] ${msg}`, step)
+        }
+      : undefined
+
     const createResult = await this.botFatherService.createBot({
       botName: options.botName,
       description: options.botDescription,
-    })
+    }, stepProgress)
 
     const disconnectResult = await this.botFatherService.disconnect()
     if (isErr(disconnectResult)) {
@@ -219,6 +226,7 @@ export class Pipeline {
     options: IPipelineOptions
   ): Promise<Result<IScaffoldStepResult, ResultError<typeof AppErrorCode.SCAFFOLD_ERROR>>> {
     log.info('Step 2: Scaffolding project with bunspace')
+    options.onProgress?.(26, '[Scaffold] Initializing project scaffold', 'scaffold_init')
 
     const projectPath = join(process.cwd(), options.botName)
 
@@ -230,6 +238,8 @@ export class Pipeline {
     }
 
     try {
+      options.onProgress?.(30, '[Scaffold] Running bunspace template', 'scaffold_run')
+
       const proc = Bun.spawn(
         [
           'bun',
@@ -257,6 +267,7 @@ export class Pipeline {
         })
       }
 
+      options.onProgress?.(50, '[Scaffold] Project scaffolded successfully', 'scaffold_done')
       log.success(`Project scaffolded at ${projectPath}`)
       return ok({ success: true, projectPath })
     } catch (error) {
@@ -279,6 +290,7 @@ export class Pipeline {
     projectPath: string
   ): Promise<Result<IGitHubStepResult, ResultError<typeof AppErrorCode.GITHUB_ERROR>>> {
     log.info('Step 3: Creating GitHub repository')
+    options.onProgress?.(51, '[GitHub] Initializing GitHub service', 'github_init')
 
     const initResult = await this.githubService.init()
     if (isErr(initResult)) {
@@ -288,12 +300,19 @@ export class Pipeline {
     const config = this.configService.get()
     const owner = options.githubOrg || config.github?.defaultOrg
 
+    // Create progress callback that maps service progress (0-100) to pipeline step range (51-65%)
+    const createRepoProgress = options.onProgress
+      ? (pct: number, msg: string, step?: string) => {
+          options.onProgress?.(51 + Math.round(pct * 0.14), `[GitHub] ${msg}`, step)
+        }
+      : undefined
+
     const repoResult = await this.githubService.createRepo({
       name: options.botName,
       description: options.botDescription || `Telegram bot: ${options.botName}`,
       private: config.github?.defaultVisibility === 'private',
       owner,
-    })
+    }, createRepoProgress)
 
     if (isErr(repoResult)) {
       return err(repoResult.error)
@@ -303,15 +322,25 @@ export class Pipeline {
       return err({ code: AppErrorCode.GITHUB_ERROR, message: 'No clone URL returned' })
     }
 
+    // Create progress callback for push (65-75%)
+    const pushProgress = options.onProgress
+      ? (pct: number, msg: string, step?: string) => {
+          options.onProgress?.(65 + Math.round(pct * 0.10), `[GitHub] ${msg}`, step)
+        }
+      : undefined
+
     const pushResult = await this.githubService.pushToRepo(
       repoResult.value.cloneUrl,
-      projectPath
+      projectPath,
+      'main',
+      pushProgress
     )
 
     if (isErr(pushResult)) {
       return err(pushResult.error)
     }
 
+    options.onProgress?.(75, '[GitHub] Repository created and code pushed', 'github_done')
     return ok({ success: true, repoUrl: repoResult.value.repoUrl })
   }
 
@@ -327,6 +356,7 @@ export class Pipeline {
     pipelineResult: IPipelineResult
   ): Promise<Result<ICoolifyStepResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     log.info('Step 4: Deploying to Coolify')
+    options.onProgress?.(76, '[Coolify] Initializing Coolify service', 'coolify_init')
 
     const initResult = await this.coolifyService.init()
     if (isErr(initResult)) {
@@ -349,13 +379,20 @@ export class Pipeline {
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'GitHub repo URL not available' })
     }
 
+    // Create progress callback for application creation (76-85%)
+    const createAppProgress = options.onProgress
+      ? (pct: number, msg: string, step?: string) => {
+          options.onProgress?.(76 + Math.round(pct * 0.09), `[Coolify] ${msg}`, step)
+        }
+      : undefined
+
     const appResult = await this.coolifyService.createApplication({
       name: options.botName,
       description: options.botDescription,
       serverUuid,
       destinationUuid,
       githubRepoUrl: pipelineResult.githubRepoUrl,
-    })
+    }, createAppProgress)
 
     if (isErr(appResult)) {
       return err(appResult.error)
@@ -366,6 +403,7 @@ export class Pipeline {
     }
 
     if (pipelineResult.botToken) {
+      options.onProgress?.(85, '[Coolify] Setting environment variables', 'coolify_env')
       const envResult = await this.coolifyService.setEnvironmentVariables(
         appResult.value.uuid,
         {
@@ -380,14 +418,22 @@ export class Pipeline {
       }
     }
 
+    // Create progress callback for deploy (90-100%)
+    const deployProgress = options.onProgress
+      ? (pct: number, msg: string, step?: string) => {
+          options.onProgress?.(90 + Math.round(pct * 0.10), `[Coolify] ${msg}`, step)
+        }
+      : undefined
+
     const deployResult = await this.coolifyService.deploy({
       uuid: appResult.value.uuid,
-    })
+    }, deployProgress)
 
     if (isErr(deployResult)) {
       return err(deployResult.error)
     }
 
+    options.onProgress?.(100, '[Coolify] Deployment triggered successfully', 'coolify_done')
     return ok({
       success: true,
       appUuid: appResult.value.uuid,

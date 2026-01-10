@@ -549,13 +549,36 @@ const AppContent = () => {
               })
               setToolExecutions((prev) => {
                 // Update existing execution or add new one
-                const existingIndex = prev.findIndex(e => e.tool === execution.tool && e.startTime === execution.startTime)
+                const existingIndex = prev.findIndex(e =>
+                  e.blockId === execution.blockId ||
+                  (e.tool === execution.tool && e.startTime === execution.startTime)
+                )
                 if (existingIndex >= 0) {
                   const updated = [...prev]
                   updated[existingIndex] = execution
                   return updated
                 }
                 return [...prev, execution]
+              })
+            },
+            onProgress: (progress: number, message: string, step?: string) => {
+              log.debug('TUI', 'Progress update', { progress, message, step })
+              // Update the most recent pending tool execution with progress
+              setToolExecutions((prev) => {
+                const pendingIndex = prev.findIndex(e => e.endTime === undefined)
+                if (pendingIndex >= 0) {
+                  const updated = [...prev]
+                  const execution = updated[pendingIndex]
+                  updated[pendingIndex] = {
+                    ...execution,
+                    progressUpdates: [
+                      ...(execution.progressUpdates || []),
+                      { timestamp: Date.now(), progress, message, step }
+                    ]
+                  }
+                  return updated
+                }
+                return prev
               })
             }
           }

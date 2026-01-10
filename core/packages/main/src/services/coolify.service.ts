@@ -160,7 +160,8 @@ export class CoolifyService {
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: 'Either uuid or tag is required' })
     }
 
-    onProgress?.(10, 'Initializing deployment', 'init')
+    const appId = options.uuid?.slice(0, 8) || options.tag || 'unknown'
+    onProgress?.(5, `Preparing deployment for ${appId}...`, 'prepare')
 
     log.info(`Deploying application ${options.uuid || options.tag}`)
     fileLog.info('COOLIFY', 'Deploying application', {
@@ -169,7 +170,10 @@ export class CoolifyService {
       force: options.force
     })
 
-    onProgress?.(30, 'Triggering Coolify deployment', 'trigger')
+    onProgress?.(15, 'Validating deployment configuration', 'validate')
+    onProgress?.(25, options.force ? 'Force deploy enabled' : 'Standard deployment mode', 'mode')
+    onProgress?.(40, 'Connecting to Coolify API...', 'connect')
+    onProgress?.(55, 'Triggering build pipeline...', 'trigger_build')
 
     const result = await this.request<{
       resource_uuid: string
@@ -194,7 +198,10 @@ export class CoolifyService {
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
 
-    onProgress?.(100, 'Deployment triggered successfully', 'done')
+    const deployId = result.data?.deployment_uuid?.slice(0, 8) || 'unknown'
+    onProgress?.(75, `Deployment queued: ${deployId}...`, 'queued')
+    onProgress?.(90, 'Build started on Coolify server', 'building')
+    onProgress?.(100, `✓ Deployment ${deployId} triggered`, 'done')
 
     log.success(`Deployment started: ${result.data?.deployment_uuid}`)
     fileLog.info('COOLIFY', 'Deployment started', {
@@ -213,12 +220,17 @@ export class CoolifyService {
    * Creates a new application in Coolify.
    *
    * @param options - Application options
+   * @param onProgress - Optional progress callback (0-100, message, step)
    * @returns Result with application UUID or error
    */
   async createApplication(
-    options: ICoolifyAppOptions
+    options: ICoolifyAppOptions,
+    onProgress?: IProgressCallback
   ): Promise<Result<ICoolifyAppResult, ResultError<typeof AppErrorCode.COOLIFY_ERROR>>> {
     const startTime = Date.now()
+
+    onProgress?.(5, `Preparing app "${options.name}"`, 'prepare')
+
     log.info(`Creating application ${options.name}`)
     fileLog.info('COOLIFY', 'Creating application', {
       name: options.name,
@@ -226,6 +238,12 @@ export class CoolifyService {
       destinationUuid: options.destinationUuid,
       repoUrl: options.githubRepoUrl
     })
+
+    onProgress?.(15, `Validating server ${options.serverUuid.slice(0, 8)}...`, 'validate_server')
+    onProgress?.(25, `Configuring destination ${options.destinationUuid.slice(0, 8)}...`, 'configure_dest')
+    onProgress?.(35, `Setting up Git: ${options.githubRepoUrl}`, 'setup_git')
+    onProgress?.(50, `Build pack: ${options.buildPack || 'nixpacks'}`, 'build_pack')
+    onProgress?.(65, 'Sending creation request to Coolify API...', 'api_request')
 
     const result = await this.request<{ uuid: string }>('/applications', {
       method: 'POST',
@@ -254,6 +272,9 @@ export class CoolifyService {
       })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: result.error })
     }
+
+    onProgress?.(85, `App UUID: ${result.data?.uuid?.slice(0, 8)}...`, 'uuid_received')
+    onProgress?.(100, `✓ Application "${options.name}" created`, 'done')
 
     log.success(`Application created: ${result.data?.uuid}`)
     fileLog.info('COOLIFY', 'Application created', {
