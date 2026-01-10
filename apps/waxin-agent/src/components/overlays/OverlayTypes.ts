@@ -65,11 +65,13 @@ export interface ShortcutOverlayConfig {
 
 /**
  * Default overlay configurations for each debug/testing shortcut
- * These will be imported from shortcuts.ts once the enum is available
+ * Uses Shortcut enum values as keys
  */
+import { Shortcut } from '../../shortcuts.js'
+
 export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
   // Debug: Colors - Right side panel
-  DEBUG_TAB_COLORS: {
+  [Shortcut.DEBUG_TAB_COLORS]: {
     position: 'right',
     backdropOpacity: 0.3,
     transparent: true,
@@ -77,7 +79,7 @@ export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
   },
 
   // Debug: Keypress - Bottom panel for event log
-  DEBUG_TAB_KEYPRESS: {
+  [Shortcut.DEBUG_TAB_KEYPRESS]: {
     position: 'bottom',
     backdropOpacity: 0.4,
     transparent: true,
@@ -85,7 +87,7 @@ export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
   },
 
   // Debug: FPS - Top right corner
-  DEBUG_TAB_FPS: {
+  [Shortcut.DEBUG_TAB_FPS]: {
     position: 'top-right',
     backdropOpacity: 0.3,
     transparent: true,
@@ -94,7 +96,7 @@ export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
   },
 
   // Debug: Performance - Right panel
-  DEBUG_TAB_PERFORMANCE: {
+  [Shortcut.DEBUG_TAB_PERFORMANCE]: {
     position: 'right',
     backdropOpacity: 0.35,
     transparent: true,
@@ -102,19 +104,19 @@ export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
   },
 
   // Testing: Question Modal - Center overlay
-  TEST_QUESTION_SINGLE: {
+  [Shortcut.TEST_QUESTION_SINGLE]: {
     position: 'center',
     backdropOpacity: 0.5,
   },
 
   // Testing: Multi-select Question - Center overlay
-  TEST_QUESTION_MULTI: {
+  [Shortcut.TEST_QUESTION_MULTI]: {
     position: 'center',
     backdropOpacity: 0.5,
   },
 
   // Navigation: Agent Switch - Right panel
-  AGENT_SWITCH: {
+  [Shortcut.AGENT_SWITCH]: {
     position: 'right',
     backdropOpacity: 0.3,
     transparent: true,
@@ -122,7 +124,7 @@ export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
   },
 
   // Messages: Clear - Small center confirmation
-  MESSAGES_CLEAR: {
+  [Shortcut.MESSAGES_CLEAR]: {
     position: 'center',
     backdropOpacity: 0.5,
     width: 40,

@@ -1,9 +1,11 @@
 /**
  * FPSMonitor - FPS and performance tracking overlay
  * Real-time FPS, frame time stats, and memory monitoring
+ * Updates both local state and debugStore
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useDebugStore, type MemoryStats as DebugMemoryStats } from '../stores/debugStore.js'
 
 export interface FrameStats {
   fps: number
@@ -107,16 +109,31 @@ export function useFPSMonitor(props: FPSMonitorProps) {
     const recentAvg = recentFrames.reduce((a, b) => a + b, 0) / recentFrames.length
     const fps = recentAvg > 0 ? Math.round(1000 / recentAvg) : 0
 
-    setStats({
+    const newStats = {
       fps,
       frameCount: frameCountRef.current,
       averageFrameTime: Math.round(avg * 10) / 10,
       minFrameTime: Math.round(min * 10) / 10,
       maxFrameTime: Math.round(max * 10) / 10,
       stdDev: Math.round(stdDev * 10) / 10,
-    })
+    }
 
-    setMemoryStats(getMemoryStats())
+    const newMemoryStats = getMemoryStats()
+
+    setStats(newStats)
+    setMemoryStats(newMemoryStats)
+
+    // Update debugStore with FPS and frame time
+    useDebugStore.getState().updateFPS(fps, avg)
+
+    // Update debugStore with memory
+    const debugMemory: DebugMemoryStats = {
+      heapUsed: newMemoryStats.heapUsedMB,
+      heapTotal: newMemoryStats.heapTotalMB,
+      external: newMemoryStats.externalMB,
+      arrayBuffers: newMemoryStats.arrayBuffersMB,
+    }
+    useDebugStore.getState().updateMemory(debugMemory)
   }, [props.frameBufferSize])
 
   // Frame recording loop - disabled in terminal environment

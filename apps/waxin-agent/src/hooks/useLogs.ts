@@ -4,7 +4,7 @@
  * Uses JsonLogger for structured JSONL file output.
  */
 
-import { getLogger, log } from '../lib/json-logger.js'
+import { log } from '../lib/json-logger.js'
 import type { LogEntry, LogFilter } from '../types.js'
 import { LogLevel } from '../types.js'
 
@@ -26,12 +26,11 @@ export function addLog(entry: LogEntry): void {
     3: 'ERR'
   }
 
-  getLogger().log({
-    level: levelMap[entry.level] || 'INF',
-    src: entry.component,
-    msg: entry.message,
-    data: entry.data as Record<string, unknown> | undefined
-  })
+  log.log(
+    levelMap[entry.level] || 'INF',
+    entry.message,
+    { source: entry.component, ...entry.data }
+  )
 }
 
 /**
@@ -156,5 +155,5 @@ export function exportLogsToString(): string {
  * Initialize log system.
  */
 export function initLogs(): void {
-  log.info('TUI', 'Log system initialized', { logPath: getLogger().getLogPath() })
+  log.info('TUI', 'Log system initialized')
 }

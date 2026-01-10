@@ -37,7 +37,7 @@ export function PositionedOverlay({
   children,
   config,
   title,
-  borderColor = THEME.purple
+  borderColor = THEME.cyan
 }: PositionedOverlayProps) {
   const renderer = useRenderer()
 
@@ -54,10 +54,9 @@ export function PositionedOverlay({
     height: config.height
   })
 
-  // Calculate background color with transparency
-  const bgColor = config.transparent
-    ? 'rgba(26, 26, 46, 0.85)'
-    : THEME.bgPanel
+  // Calculate background color - always use dark background
+  // Dark gray color (not purple/magenta) for better readability
+  const bgColor = '#1e1e2e'  // Very dark gray, similar to VS Code default
 
   // Build style object with proper type
   const style = {

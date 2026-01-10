@@ -1,8 +1,11 @@
 /**
  * PerformanceTracker - Mark-based performance timing and memory tracking
+ * Updates both local measurements and debugStore
  *
  * Adapted from @mks2508/opentui-image for waxin-agent TUI
  */
+
+import { useDebugStore, type PerformanceMetrics as DebugPerformanceMetrics } from '../stores/debugStore.js'
 
 export interface PerformanceMetrics {
   decode: number
@@ -50,6 +53,20 @@ export class PerformanceTracker {
     const elapsed = performance.now() - startTime
     this.measurements.set(label, elapsed)
     this.marks.delete(label)
+
+    // Update debugStore with new metrics
+    const metrics = this.getMetrics()
+    const debugMetrics: DebugPerformanceMetrics = {
+      agentExec: metrics.agentExec ?? 0,
+      toolCall: metrics.toolCall ?? 0,
+      render: metrics.render ?? 0,
+      decode: metrics.decode,
+      resize: metrics.resize,
+      convert: metrics.convert,
+      total: metrics.total,
+    }
+    useDebugStore.getState().updatePerformanceMetrics(debugMetrics)
+
     return elapsed
   }
 

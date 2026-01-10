@@ -12,3 +12,13 @@ export {
   type AgentState,
   type AgentActions,
 } from './agentStore.js'
+
+export {
+  useDebugStore,
+  getCurrentMemoryStats,
+  getMemoryUsagePercent,
+  type DebugState,
+  type MemoryStats,
+  type PerformanceMetrics,
+  type KeypressEvent,
+} from './debugStore.js'

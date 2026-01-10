@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { tuiLogger } from '../../lib/json-logger.js'
 import { THEME } from '../../theme/colors.js'
 import { formatMemory } from '../../utils/format.js'
+import { useDebugStore } from '../../stores/debugStore.js'
 
 interface FPSOverlayProps {
   onClose?: () => void
@@ -31,6 +32,12 @@ function getFPSColor(fps: number): string {
  * - Memory usage tracking
  */
 export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
+  // Read from debugStore for FPS and memory (synchronized across all overlays)
+  const debugFps = useDebugStore((state) => state.fps)
+  const debugFrameTime = useDebugStore((state) => state.frameTime)
+  const debugMemory = useDebugStore((state) => state.memory)
+
+  // Use FPSMonitor for detailed stats (keeps its own buffer)
   const { stats, memoryStats } = useFPSMonitor({
     visible: true,
     updateInterval: 500,
@@ -39,13 +46,16 @@ export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
 
   // Log when overlay mounts
   useEffect(() => {
-    tuiLogger.info('FPS Overlay mounted', { fps: stats.fps })
+    tuiLogger.info('FPS Overlay mounted', { fps: debugFps })
     return () => {
       tuiLogger.info('FPS Overlay unmounted')
     }
-  }, [])
+  }, [debugFps])
 
-  const fpsColor = getFPSColor(stats.fps)
+  // Use debugStore values for consistency
+  const fps = debugFps > 0 ? debugFps : stats.fps
+  const frameTime = debugFrameTime > 0 ? debugFrameTime : stats.averageFrameTime
+  const fpsColor = getFPSColor(fps)
 
   return (
     <box style={{ flexDirection: 'column' }}>
@@ -59,7 +69,7 @@ export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
       {/* FPS Display */}
       <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
         <text style={{ fg: fpsColor as any }}>
-          {stats.fps.toString().padStart(3, ' ')}
+          {fps.toString().padStart(3, ' ')}
         </text>
         <text style={{ fg: THEME.textMuted }}>
           {'FPS'}
@@ -72,7 +82,7 @@ export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
           {'Frame:'}
         </text>
         <text style={{ fg: THEME.text }}>
-          {`${stats.averageFrameTime}ms`}
+          {`${frameTime.toFixed(1)}ms`}
         </text>
         <text style={{ fg: THEME.textMuted }}>
           {`(min: ${stats.minFrameTime}ms, max: ${stats.maxFrameTime}ms)`}
@@ -85,13 +95,13 @@ export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
           {'Memory:'}
         </text>
         <text style={{ fg: THEME.cyan }}>
-          {formatMemory(memoryStats.heapUsedMB)}
+          {debugMemory.heapUsed > 0 ? `${debugMemory.heapUsed.toFixed(1)} MB` : formatMemory(memoryStats.heapUsedMB)}
         </text>
         <text style={{ fg: THEME.textMuted }}>
           {'/'}
         </text>
         <text style={{ fg: THEME.textDim }}>
-          {formatMemory(memoryStats.heapTotalMB)}
+          {debugMemory.heapTotal > 0 ? `${debugMemory.heapTotal.toFixed(1)} MB` : formatMemory(memoryStats.heapTotalMB)}
         </text>
       </box>
 
@@ -127,7 +137,7 @@ export function FPSOverlay({ onClose: _onClose }: FPSOverlayProps) {
             {'Buffers:'}
           </text>
           <text style={{ fg: THEME.text }}>
-            {`${memoryStats.arrayBuffersMB}MB`}
+            {debugMemory.arrayBuffers > 0 ? `${debugMemory.arrayBuffers.toFixed(1)} MB` : `${memoryStats.arrayBuffersMB}MB`}
           </text>
         </box>
       </box>

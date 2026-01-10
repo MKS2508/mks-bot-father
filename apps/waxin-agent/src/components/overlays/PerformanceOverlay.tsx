@@ -1,166 +1,242 @@
 /**
  * PerformanceOverlay - Performance metrics overlay
- * Shows agent execution, tool calls, and memory usage from global tracker
+ * Shows agent execution, tool calls, and memory usage with improved UI
  */
 
-import { globalTracker } from '../../lib/performance-tracker.js'
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { tuiLogger } from '../../lib/json-logger.js'
 import { THEME } from '../../theme/colors.js'
-import { formatDuration, formatMemory } from '../../utils/format.js'
+import { formatDuration } from '../../utils/format.js'
+import { useDebugStore, getCurrentMemoryStats } from '../../stores/debugStore.js'
 
 interface PerformanceOverlayProps {
   onClose?: () => void
 }
 
 /**
- * PerformanceOverlay - Display performance metrics
+ * Get color based on performance threshold
+ */
+function getPerfColor(ms: number, thresholds: { good: number; warning: number }): string {
+  if (ms <= thresholds.good) return THEME.green
+  if (ms <= thresholds.warning) return THEME.yellow
+  return THEME.red
+}
+
+/**
+ * Create progress bar string based on value and max
+ */
+function createProgressBar(value: number, max: number, width: number = 10): string {
+  const filled = Math.min(Math.round((value / max) * width), width)
+  const empty = width - filled
+  return '█'.repeat(filled) + '░'.repeat(empty)
+}
+
+/**
+ * PerformanceOverlay - Display performance metrics with improved UI
  *
  * Features:
- * - Agent execution time
- * - Tool call timing
- * - Render performance
- * - Memory usage tracking
+ * - Sectioned layout (Execution, Image Operations, Memory)
+ * - Progress bars for visual feedback
+ * - Color-coded performance (green/yellow/red)
+ * - Real-time updates from debugStore
  */
 export function PerformanceOverlay({ onClose: _onClose }: PerformanceOverlayProps) {
-  const [metrics, setMetrics] = useState(globalTracker.getMetrics())
-  const [memory, setMemory] = useState(globalTracker.getMemoryStats())
+  const performanceMetrics = useDebugStore((state) => state.performanceMetrics)
+  const memory = useDebugStore((state) => state.memory)
 
   // Log when overlay mounts
   useEffect(() => {
     tuiLogger.info('Performance Overlay mounted', {
-      totalMs: metrics.total,
-      memoryMB: memory.heapUsedMB,
+      totalMs: performanceMetrics.total,
+      memoryMB: memory.heapUsed,
     })
     return () => {
       tuiLogger.info('Performance Overlay unmounted')
     }
-  }, [])
+  }, [performanceMetrics.total, memory.heapUsed])
 
-  // Update metrics every 500ms
+  // Update memory stats every 500ms
   useEffect(() => {
     const interval = setInterval(() => {
-      setMetrics(globalTracker.getMetrics())
-      setMemory(globalTracker.getMemoryStats())
+      const currentMemory = getCurrentMemoryStats()
+      useDebugStore.getState().updateMemory(currentMemory)
     }, 500)
 
     return () => clearInterval(interval)
   }, [])
+
+  // Calculate max values for progress bars (100ms base)
+  const maxTime = Math.max(
+    performanceMetrics.agentExec,
+    performanceMetrics.toolCall,
+    performanceMetrics.render,
+    performanceMetrics.decode,
+    performanceMetrics.resize,
+    performanceMetrics.convert,
+    100
+  )
 
   return (
     <box style={{ flexDirection: 'column' }}>
       {/* Header */}
       <box style={{ paddingBottom: 1 }}>
         <text style={{ fg: THEME.cyan }}>
-          {'⚡ Performance Tracker'}
+          {'⚡ Performance Metrics'}
         </text>
       </box>
 
-      {/* Metrics Display */}
-      {metrics.agentExec !== undefined && (
-        <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Agent:'}
+      {/* Execution Times Section */}
+      <box style={{ flexDirection: 'column', marginBottom: 1 }}>
+        <text style={{ fg: THEME.textDim, marginBottom: 1 }}>
+          {'📊 Execution Times'}
+        </text>
+
+        {performanceMetrics.agentExec > 0 && (
+          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+            <text style={{ fg: THEME.textMuted, width: 12 }}>
+              {'Agent:'}
+            </text>
+            <text style={{ fg: getPerfColor(performanceMetrics.agentExec, { good: 100, warning: 500 }) }}>
+              {formatDuration(performanceMetrics.agentExec).padEnd(8)}
+            </text>
+            <text style={{ fg: getPerfColor(performanceMetrics.agentExec, { good: 100, warning: 500 }) }}>
+              {createProgressBar(performanceMetrics.agentExec, maxTime, 8)}
+            </text>
+          </box>
+        )}
+
+        {performanceMetrics.toolCall > 0 && (
+          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+            <text style={{ fg: THEME.textMuted, width: 12 }}>
+              {'Tools:'}
+            </text>
+            <text style={{ fg: getPerfColor(performanceMetrics.toolCall, { good: 50, warning: 200 }) }}>
+              {formatDuration(performanceMetrics.toolCall).padEnd(8)}
+            </text>
+            <text style={{ fg: getPerfColor(performanceMetrics.toolCall, { good: 50, warning: 200 }) }}>
+              {createProgressBar(performanceMetrics.toolCall, maxTime, 8)}
+            </text>
+          </box>
+        )}
+
+        {performanceMetrics.render > 0 && (
+          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+            <text style={{ fg: THEME.textMuted, width: 12 }}>
+              {'Render:'}
+            </text>
+            <text style={{ fg: getPerfColor(performanceMetrics.render, { good: 16, warning: 33 }) }}>
+              {formatDuration(performanceMetrics.render).padEnd(8)}
+            </text>
+            <text style={{ fg: getPerfColor(performanceMetrics.render, { good: 16, warning: 33 }) }}>
+              {createProgressBar(performanceMetrics.render, maxTime, 8)}
+            </text>
+          </box>
+        )}
+
+        {/* Total */}
+        {performanceMetrics.total > 0 && (
+          <box style={{ flexDirection: 'row', gap: 1 }}>
+            <text style={{ fg: THEME.orange, width: 12 }}>
+              {'Total:'}
+            </text>
+            <text style={{ fg: THEME.orange }}>
+              {formatDuration(performanceMetrics.total).padEnd(8)}
+            </text>
+            <text style={{ fg: THEME.orange }}>
+              {createProgressBar(performanceMetrics.total, maxTime * 1.5, 8)}
+            </text>
+          </box>
+        )}
+      </box>
+
+      {/* Image Operations Section */}
+      {(performanceMetrics.decode > 0 || performanceMetrics.resize > 0 || performanceMetrics.convert > 0) && (
+        <box style={{ flexDirection: 'column', marginBottom: 1, marginTop: 1 }}>
+          <text style={{ fg: THEME.textDim, marginBottom: 1 }}>
+            {'🖼️ Image Operations'}
           </text>
-          <text style={{ fg: THEME.green }}>
-            {formatDuration(metrics.agentExec)}
-          </text>
+
+          {performanceMetrics.decode > 0 && (
+            <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+              <text style={{ fg: THEME.textMuted, width: 12 }}>
+                {'Decode:'}
+              </text>
+              <text style={{ fg: getPerfColor(performanceMetrics.decode, { good: 50, warning: 200 }) }}>
+                {formatDuration(performanceMetrics.decode).padEnd(8)}
+              </text>
+              <text style={{ fg: getPerfColor(performanceMetrics.decode, { good: 50, warning: 200 }) }}>
+                {createProgressBar(performanceMetrics.decode, maxTime, 8)}
+              </text>
+            </box>
+          )}
+
+          {performanceMetrics.resize > 0 && (
+            <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+              <text style={{ fg: THEME.textMuted, width: 12 }}>
+                {'Resize:'}
+              </text>
+              <text style={{ fg: getPerfColor(performanceMetrics.resize, { good: 100, warning: 300 }) }}>
+                {formatDuration(performanceMetrics.resize).padEnd(8)}
+              </text>
+              <text style={{ fg: getPerfColor(performanceMetrics.resize, { good: 100, warning: 300 }) }}>
+                {createProgressBar(performanceMetrics.resize, maxTime, 8)}
+              </text>
+            </box>
+          )}
+
+          {performanceMetrics.convert > 0 && (
+            <box style={{ flexDirection: 'row', gap: 1 }}>
+              <text style={{ fg: THEME.textMuted, width: 12 }}>
+                {'Convert:'}
+              </text>
+              <text style={{ fg: getPerfColor(performanceMetrics.convert, { good: 50, warning: 200 }) }}>
+                {formatDuration(performanceMetrics.convert).padEnd(8)}
+              </text>
+              <text style={{ fg: getPerfColor(performanceMetrics.convert, { good: 50, warning: 200 }) }}>
+                {createProgressBar(performanceMetrics.convert, maxTime, 8)}
+              </text>
+            </box>
+          )}
         </box>
       )}
 
-      {metrics.toolCall !== undefined && metrics.toolCall > 0 && (
-        <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Tools:'}
-          </text>
-          <text style={{ fg: THEME.yellow }}>
-            {formatDuration(metrics.toolCall)}
-          </text>
-        </box>
-      )}
+      {/* Memory Section */}
+      <box style={{ flexDirection: 'column', marginTop: 1 }}>
+        <text style={{ fg: THEME.textDim, marginBottom: 1 }}>
+          {'💾 Memory Usage'}
+        </text>
 
-      {metrics.render !== undefined && metrics.render > 0 && (
-        <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Render:'}
+        <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+          <text style={{ fg: THEME.textMuted, width: 12 }}>
+            {'Heap:'}
           </text>
           <text style={{ fg: THEME.cyan }}>
-            {formatDuration(metrics.render)}
+            {`${memory.heapUsed.toFixed(1)} MB / ${memory.heapTotal.toFixed(1)} MB`.padEnd(20)}
           </text>
         </box>
-      )}
 
-      {metrics.decode > 0 && (
-        <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Decode:'}
-          </text>
-          <text style={{ fg: THEME.text }}>
-            {formatDuration(metrics.decode)}
-          </text>
-        </box>
-      )}
+        {memory.external > 0 && (
+          <box style={{ flexDirection: 'row', gap: 1, marginBottom: 1 }}>
+            <text style={{ fg: THEME.textMuted, width: 12 }}>
+              {'External:'}
+            </text>
+            <text style={{ fg: THEME.textDim }}>
+              {`${memory.external.toFixed(1)} MB`.padEnd(20)}
+            </text>
+          </box>
+        )}
 
-      {metrics.resize > 0 && (
-        <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Resize:'}
-          </text>
-          <text style={{ fg: THEME.text }}>
-            {formatDuration(metrics.resize)}
-          </text>
-        </box>
-      )}
-
-      {metrics.convert > 0 && (
-        <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Convert:'}
-          </text>
-          <text style={{ fg: THEME.text }}>
-            {formatDuration(metrics.convert)}
-          </text>
-        </box>
-      )}
-
-      {/* Separator */}
-      <box style={{ marginTop: 1, marginBottom: 1 }}>
-        <text style={{ fg: THEME.textMuted }}>
-          {'─'.repeat(25)}
-        </text>
+        {memory.arrayBuffers > 0 && (
+          <box style={{ flexDirection: 'row', gap: 1 }}>
+            <text style={{ fg: THEME.textMuted, width: 12 }}>
+              {'Buffers:'}
+            </text>
+            <text style={{ fg: THEME.textDim }}>
+              {`${memory.arrayBuffers.toFixed(1)} MB`.padEnd(20)}
+            </text>
+          </box>
+        )}
       </box>
-
-      {/* Total */}
-      <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-        <text style={{ fg: THEME.textMuted, width: 10 }}>
-          {'Total:'}
-        </text>
-        <text style={{ fg: THEME.orange }}>
-          {formatDuration(metrics.total)}
-        </text>
-      </box>
-
-      {/* Memory */}
-      <box style={{ flexDirection: 'row', gap: 2, marginBottom: 1 }}>
-        <text style={{ fg: THEME.textMuted, width: 10 }}>
-          {'Memory:'}
-        </text>
-        <text style={{ fg: THEME.cyan }}>
-          {formatMemory(memory.heapUsedMB)} / {formatMemory(memory.heapTotalMB)}
-        </text>
-      </box>
-
-      {/* Arrays */}
-      {memory.arrayBuffersMB > 0 && (
-        <box style={{ flexDirection: 'row', gap: 2 }}>
-          <text style={{ fg: THEME.textMuted, width: 10 }}>
-            {'Buffers:'}
-          </text>
-          <text style={{ fg: THEME.textDim }}>
-            {formatMemory(memory.arrayBuffersMB)}
-          </text>
-        </box>
-      )}
     </box>
   )
 }

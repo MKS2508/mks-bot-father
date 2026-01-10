@@ -45,7 +45,7 @@ export {
 } from './useLogs.js'
 
 // Re-export JSON logger for direct use
-export { log, getLogger } from '../lib/json-logger.js'
+export { log } from '../lib/json-logger.js'
 
 export {
   initOperations,
