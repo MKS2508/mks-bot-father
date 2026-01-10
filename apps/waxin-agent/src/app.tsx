@@ -5,11 +5,11 @@
 
 import { createCliRenderer, type TextareaRenderable } from '@opentui/core'
 import { createRoot, useKeyboard, useRenderer } from '@opentui/react'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useAgent } from './hooks/useAgent.js'
 import { log } from './lib/json-logger.js'
 import { getStats, updateStats, formatTokens, formatCost } from './hooks/useStats.js'
-import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header, StatsBarMinimal } from './components/index.js'
+import { Banner, initImageBackends, QuestionModal, Topbar, FloatingImage, initFloatingImageBackends, ChatBubble, ThinkingIndicator, SplashScreen, Header, StatsBarMinimal, PositionedOverlay, DEFAULT_OVERLAY_CONFIGS, getOverlayComponent, hasOverlay } from './components/index.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
 import type { AgentStats, BannerConfig, UserQuestion } from './types.js'
 import type { DebugTab } from './components/index.js'
@@ -18,6 +18,7 @@ import { resolve } from 'path'
 import { readFileSync } from 'fs'
 import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker, ShortcutCategory, formatShortcutKeysWithSequences } from './shortcuts.js'
 import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
+import type { OverlayConfig } from './components/overlays/OverlayTypes.js'
 
 const MODE = process.env.MODE || 'DEBUG'
 const SHOW_HEADER = MODE === 'DEBUG'
@@ -102,9 +103,15 @@ const HELP_CATEGORIES = [
   { key: ShortcutCategory.MESSAGES, label: 'Messages', color: THEME.blue },
   { key: ShortcutCategory.NAVIGATION, label: 'Navigation', color: THEME.cyan },
   { key: ShortcutCategory.SYSTEM, label: 'System', color: THEME.orange },
+  { key: ShortcutCategory.TESTING, label: 'Testing', color: THEME.yellow },
 ] as const
 
-function HelpDialogContent() {
+interface HelpDialogContentProps {
+  onShowOverlay: (shortcutId: Shortcut) => void
+  onDirectAction: (shortcutId: Shortcut) => void  // For actions that don't open overlays
+}
+
+function HelpDialogContent({ onShowOverlay, onDirectAction }: HelpDialogContentProps) {
   return (
     <box style={{ flexDirection: 'column', gap: 1 }}>
       {HELP_CATEGORIES.map(cat => {
@@ -116,23 +123,54 @@ function HelpDialogContent() {
             <text style={{ fg: cat.color as any }}>
               {cat.label}
             </text>
-            {shortcuts.map((shortcut, i) => (
-              <box key={i} style={{ flexDirection: 'row', gap: 2 }}>
-                <text style={{ fg: THEME.cyan as any, width: 28 }}>
-                  {formatShortcutKeysWithSequences(shortcut)}
-                </text>
-                <text style={{ fg: THEME.textDim as any }}>
-                  {shortcut.description}
-                </text>
-              </box>
-            ))}
+            {shortcuts.map((shortcut, i) => {
+              // Non-clickable: TOGGLE_HELP, CLOSE_HELP
+              const isClickable = shortcut.id !== Shortcut.TOGGLE_HELP && shortcut.id !== Shortcut.CLOSE_HELP
+
+              return (
+                <box
+                  key={i}
+                  style={{
+                    flexDirection: 'row',
+                    gap: 2,
+                    paddingLeft: 1,
+                    paddingRight: 1,
+                  }}
+                  onMouseUp={isClickable ? () => {
+                    // Check if this shortcut has an overlay
+                    if (hasOverlay(shortcut.id)) {
+                      onShowOverlay(shortcut.id)
+                    } else {
+                      onDirectAction(shortcut.id)
+                    }
+                  } : undefined}
+                >
+                  <text style={{
+                    fg: THEME.cyan as any,
+                    width: 20,
+                  }}>
+                    {formatShortcutKeysWithSequences(shortcut)}
+                  </text>
+                  <text style={{
+                    fg: THEME.textDim as any,
+                  }}>
+                    {shortcut.description}
+                  </text>
+                  {isClickable && (
+                    <text style={{ fg: THEME.green as any }}>
+                      {' [click]'}
+                    </text>
+                  )}
+                </box>
+              )
+            })}
           </box>
         )
       })}
 
-      <box style={{ marginTop: 1 }}>
+      <box style={{ marginTop: 1, flexDirection: 'row', gap: 2 }}>
         <text style={{ fg: THEME.textMuted as any }}>
-          Press hh / ? / F1 / Esc to close
+          Click any [click] option or press Esc to close
         </text>
       </box>
     </box>
@@ -164,10 +202,191 @@ const AppContent = () => {
   const textareaRef = useRef<TextareaRenderable | null>(null)
   const sequenceTrackerRef = useRef(createSequenceTracker())
 
-  // Function to show help dialog
+  // Execute shortcut action - shared between keyboard and click handlers
+  const executeShortcut = useCallback((shortcutId: Shortcut) => {
+    log.debug('TUI', `Executing shortcut: ${shortcutId}`)
+
+    switch (shortcutId) {
+      case Shortcut.TEXTAREA_TOGGLE_FOCUS:
+        setTextareaFocused(prev => !prev)
+        log.info('TUI', 'Textarea focus toggled')
+        break
+
+      case Shortcut.DEBUG_TOGGLE:
+        setDebugMode(prev => !prev)
+        log.info('TUI', 'Debug mode toggled')
+        break
+
+      case Shortcut.DEBUG_TAB_COLORS:
+        setDebugTab('colors')
+        log.debug('TUI', 'Debug tab: colors')
+        break
+
+      case Shortcut.DEBUG_TAB_KEYPRESS:
+        setDebugTab('keypress')
+        log.debug('TUI', 'Debug tab: keypress')
+        break
+
+      case Shortcut.DEBUG_TAB_FPS:
+        setDebugTab('fps')
+        log.debug('TUI', 'Debug tab: fps')
+        break
+
+      case Shortcut.DEBUG_TAB_PERFORMANCE:
+        setDebugTab('performance')
+        log.debug('TUI', 'Debug tab: performance')
+        break
+
+      case Shortcut.DEBUG_CLOSE:
+        setDebugMode(false)
+        log.info('TUI', 'Debug mode closed')
+        break
+
+      case Shortcut.MESSAGES_CLEAR:
+        setMessages([])
+        log.debug('TUI', 'Messages cleared')
+        break
+
+      case Shortcut.AGENT_SWITCH:
+        setCurrentAgent(prev => getNextAgent(prev))
+        log.info('TUI', 'Agent switched')
+        break
+
+      case Shortcut.APP_EXIT:
+        log.info('TUI', 'Shutting down - user requested exit')
+        renderer?.destroy()
+        process.exit(0)
+
+      case Shortcut.TEST_QUESTION_SINGLE:
+        dialog.close()
+        const testQuestion: UserQuestion = {
+          question: 'Which library should we use for date formatting?',
+          header: 'Library',
+          options: [
+            { label: 'date-fns (Recommended)', description: 'Lightweight and tree-shakeable' },
+            { label: 'moment.js', description: 'Feature-rich but larger bundle size' },
+            { label: 'dayjs', description: 'Immutable and minimal API' },
+            { label: 'Luxon', description: 'Modern Intl-based formatting' },
+          ],
+          multiSelect: false
+        }
+        showQuestion(testQuestion, {
+          onAnswer: (response) => {
+            log.info('TUI', 'Test question answered', { response })
+          },
+          onCancel: () => {
+            log.info('TUI', 'Test question cancelled')
+          }
+        })
+        break
+
+      case Shortcut.TEST_QUESTION_MULTI:
+        dialog.close()
+        const testMultiQuestion: UserQuestion = {
+          question: 'Which features do you want to enable?',
+          header: 'Features',
+          options: [
+            { label: 'Dark Mode', description: 'Enable dark theme support' },
+            { label: 'Analytics', description: 'Track user interactions' },
+            { label: 'PWA Support', description: 'Progressive web app capabilities' },
+            { label: 'Offline Mode', description: 'Cache data for offline use' },
+          ],
+          multiSelect: true
+        }
+        showQuestion(testMultiQuestion, {
+          onAnswer: (response) => {
+            log.info('TUI', 'Test multi-question answered', { response })
+          },
+          onCancel: () => {
+            log.info('TUI', 'Test multi-question cancelled')
+          }
+        })
+        break
+    }
+  }, [dialog, renderer, showQuestion])
+
+  // Function to show positioned overlay for a shortcut
+  const showOverlay = useCallback((shortcutId: Shortcut) => {
+    const OverlayComponent = getOverlayComponent(shortcutId)
+    if (!OverlayComponent) {
+      log.warn('TUI', 'No overlay component for shortcut', { shortcutId })
+      // Fallback to direct execution
+      executeShortcut(shortcutId)
+      return
+    }
+
+    const config = DEFAULT_OVERLAY_CONFIGS[shortcutId] as OverlayConfig | undefined
+    if (!config) {
+      log.warn('TUI', 'No overlay config for shortcut', { shortcutId })
+      executeShortcut(shortcutId)
+      return
+    }
+
+    // Create title for overlay
+    const titles: Record<string, string> = {
+      [Shortcut.DEBUG_TAB_COLORS]: '🎨 Colors',
+      [Shortcut.DEBUG_TAB_KEYPRESS]: '⌨️ Keypress Events',
+      [Shortcut.DEBUG_TAB_FPS]: '📊 FPS Monitor',
+      [Shortcut.DEBUG_TAB_PERFORMANCE]: '⚡ Performance',
+      [Shortcut.TEST_QUESTION_SINGLE]: '❓ Test Question (Single)',
+      [Shortcut.TEST_QUESTION_MULTI]: '🔘 Test Question (Multi)',
+      [Shortcut.AGENT_SWITCH]: '🤖 Agent Switcher',
+    }
+    const title = titles[shortcutId]
+
+    dialog.show({
+      content: () => {
+        // Helper function to render the overlay component
+        const renderOverlay = () => {
+          const Component = OverlayComponent
+          // Use createElement instead of JSX for type compatibility
+          return React.createElement(Component as any, {
+            onClose: () => {
+              dialog.close()
+              showHelpDialog()
+            }
+          })
+        }
+
+        return (
+          <PositionedOverlay
+            config={config}
+            title={title}
+          >
+            {renderOverlay()}
+          </PositionedOverlay>
+        )
+      },
+      size: 'large',
+      backdropOpacity: config.backdropOpacity ?? 0.4,
+      backdropColor: '#1a1a2e',
+      closeOnEscape: true,
+      style: {
+        backgroundColor: 'transparent',
+        padding: 0,
+      },
+    })
+    log.info('TUI', 'Overlay opened', { shortcutId })
+  }, [dialog, executeShortcut])
+
+  // Function to show help dialog (renamed from showHelpDialogWithOverlay)
   const showHelpDialog = useCallback(() => {
     dialog.show({
-      content: () => <HelpDialogContent />,
+      content: () => (
+        <HelpDialogContent
+          onShowOverlay={(shortcutId) => {
+            // Close help and show overlay
+            dialog.close()
+            // Use setTimeout to avoid circular dependency
+            setTimeout(() => showOverlay(shortcutId), 0)
+          }}
+          onDirectAction={(shortcutId) => {
+            // Execute action directly and close help
+            dialog.close()
+            executeShortcut(shortcutId)
+          }}
+        />
+      ),
       size: 'large',
       backdropOpacity: 0.5,
       backdropColor: '#1a1a2e',
@@ -178,7 +397,7 @@ const AppContent = () => {
       },
     })
     log.info('TUI', 'Help dialog opened')
-  }, [dialog])
+  }, [dialog, executeShortcut, showOverlay])
 
   // Load WAXIN text
   useEffect(() => {
@@ -235,119 +454,26 @@ const AppContent = () => {
       if (keyMatches || sequenceMatches) {
         key.preventDefault?.()
 
-        // Execute shortcut action
-        switch (shortcut.id) {
-          case Shortcut.TOGGLE_HELP:
-            if (isDialogOpen) {
-              dialog.close()
-              log.info('TUI', 'Help dialog closed')
-            } else {
-              showHelpDialog()
-            }
-            break
-
-          case Shortcut.CLOSE_HELP:
+        // Special cases that need dialog handling
+        if (shortcut.id === Shortcut.TOGGLE_HELP) {
+          if (isDialogOpen) {
             dialog.close()
             log.info('TUI', 'Help dialog closed')
-            break
-
-          case Shortcut.TEXTAREA_TOGGLE_FOCUS:
-            setTextareaFocused(!textareaFocused)
-            log.info('TUI', `Textarea focus ${textareaFocused ? 'disabled' : 'enabled'}`)
-            break
-
-          case Shortcut.DEBUG_TOGGLE:
-            setDebugMode(!debugMode)
-            log.info('TUI', `Debug mode ${debugMode ? 'disabled' : 'enabled'}`)
-            break
-
-          case Shortcut.DEBUG_TAB_COLORS:
-            setDebugTab('colors')
-            log.debug('TUI', 'Debug tab: colors')
-            break
-
-          case Shortcut.DEBUG_TAB_KEYPRESS:
-            setDebugTab('keypress')
-            log.debug('TUI', 'Debug tab: keypress')
-            break
-
-          case Shortcut.DEBUG_TAB_FPS:
-            setDebugTab('fps')
-            log.debug('TUI', 'Debug tab: fps')
-            break
-
-          case Shortcut.DEBUG_TAB_PERFORMANCE:
-            setDebugTab('performance')
-            log.debug('TUI', 'Debug tab: performance')
-            break
-
-          case Shortcut.DEBUG_CLOSE:
-            setDebugMode(false)
-            log.info('TUI', 'Debug mode closed')
-            break
-
-          case Shortcut.MESSAGES_CLEAR:
-            setMessages([])
-            log.debug('TUI', 'Messages cleared')
-            break
-
-          case Shortcut.AGENT_SWITCH:
-            const nextAgent = getNextAgent(currentAgent)
-            setCurrentAgent(nextAgent)
-            log.info('TUI', `Agent switched to ${nextAgent}`, { agent: nextAgent })
-            break
-
-          case Shortcut.APP_EXIT:
-            log.info('TUI', 'Shutting down - user requested exit')
-            renderer?.destroy()
-            process.exit(0)
-
-          case Shortcut.TEST_QUESTION_SINGLE:
-            const testQuestion: UserQuestion = {
-              question: 'Which library should we use for date formatting?',
-              header: 'Library',
-              options: [
-                { label: 'date-fns (Recommended)', description: 'Lightweight and tree-shakeable' },
-                { label: 'moment.js', description: 'Feature-rich but larger bundle size' },
-                { label: 'dayjs', description: 'Immutable and minimal API' },
-                { label: 'Luxon', description: 'Modern Intl-based formatting' },
-              ],
-              multiSelect: false
-            }
-            showQuestion(testQuestion, {
-              onAnswer: (response) => {
-                log.info('TUI', 'Test question answered', { response })
-              },
-              onCancel: () => {
-                log.info('TUI', 'Test question cancelled')
-              }
-            })
-            break
-
-          case Shortcut.TEST_QUESTION_MULTI:
-            const testMultiQuestion: UserQuestion = {
-              question: 'Which features do you want to enable?',
-              header: 'Features',
-              options: [
-                { label: 'Dark Mode', description: 'Enable dark theme support' },
-                { label: 'Analytics', description: 'Track user interactions' },
-                { label: 'PWA Support', description: 'Progressive web app capabilities' },
-                { label: 'Offline Mode', description: 'Cache data for offline use' },
-              ],
-              multiSelect: true
-            }
-            showQuestion(testMultiQuestion, {
-              onAnswer: (response) => {
-                log.info('TUI', 'Test multi-question answered', { response })
-              },
-              onCancel: () => {
-                log.info('TUI', 'Test multi-question cancelled')
-              }
-            })
-            break
+          } else {
+            showHelpDialog()
+          }
+          return
         }
 
-        return // Shortcut handled, stop processing
+        if (shortcut.id === Shortcut.CLOSE_HELP) {
+          dialog.close()
+          log.info('TUI', 'Help dialog closed')
+          return
+        }
+
+        // All other shortcuts use the shared executor
+        executeShortcut(shortcut.id)
+        return
       }
     }
   })
@@ -844,7 +970,7 @@ const AppContent = () => {
               {`[DEBUG] ${debugTab.toUpperCase()}`}
             </text>
             <text style={{ fg: THEME.textMuted }}>
-              {' Ctrl+1-4: Tabs | Esc: Close'}
+              {' 1-4: Tabs | Esc: Close'}
             </text>
           </box>
 

@@ -166,34 +166,28 @@ export const SHORTCUTS: ReadonlyArray<ShortcutConfig> = [
   },
   {
     id: Shortcut.DEBUG_TAB_COLORS,
-    keys: [{ name: KeyName._1, ctrl: true }],
+    keys: [{ name: KeyName._1 }],
     description: 'Debug: Colors Tab',
     category: ShortcutCategory.DEBUG,
     enabledWhen: 'debug_only',
   },
   {
     id: Shortcut.DEBUG_TAB_KEYPRESS,
-    keys: [
-      { name: KeyName._2, ctrl: true },
-      { name: KeyName.K, ctrl: true },
-    ],
+    keys: [{ name: KeyName._2 }],
     description: 'Debug: Keypress Tab',
     category: ShortcutCategory.DEBUG,
     enabledWhen: 'debug_only',
   },
   {
     id: Shortcut.DEBUG_TAB_FPS,
-    keys: [
-      { name: KeyName._3, ctrl: true },
-      { name: KeyName.F, ctrl: true },
-    ],
+    keys: [{ name: KeyName._3 }],
     description: 'Debug: FPS Tab',
     category: ShortcutCategory.DEBUG,
     enabledWhen: 'debug_only',
   },
   {
     id: Shortcut.DEBUG_TAB_PERFORMANCE,
-    keys: [{ name: KeyName._4, ctrl: true }],
+    keys: [{ name: KeyName._4 }],
     description: 'Debug: Performance Tab',
     category: ShortcutCategory.DEBUG,
     enabledWhen: 'debug_only',

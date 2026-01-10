@@ -4,9 +4,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import type { ReactElement } from 'react'
-import { resolve } from 'path'
-import { readFileSync } from 'fs'
 
 const THEME = {
   purple: '#b381c5',
@@ -122,7 +119,7 @@ function applyDecodeEffect(lines: string[]): AnimatedLine[] {
   })
 }
 
-function renderAnimatedAscii(ascii: string, effect: AsciiEffect): ReactElement {
+function renderAnimatedAscii(ascii: string, effect: AsciiEffect) {
   const lines = ascii.split('\n')
 
   let animatedLines: AnimatedLine[]
@@ -149,7 +146,7 @@ function renderAnimatedAscii(ascii: string, effect: AsciiEffect): ReactElement {
 
   return (
     <box style={{ flexDirection: 'column' }}>
-      {animatedLines.map((line, i) => (
+      {animatedLines.map((line: AnimatedLine, i: number) => (
         <text key={i} style={{ fg: line.color as any }}>
           {line.text}
         </text>

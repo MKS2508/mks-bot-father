@@ -21,6 +21,7 @@ if (dotenvResult.error) {
 } else {
   console.log(`✅ Loaded .env from: ${envPath}`)
   console.log(`📊 Variables loaded: ${Object.keys(dotenvResult.parsed || {}).length}`)
+  console.log(`🔧 MODE=${process.env.MODE}`)
 }
 
 // Verify API key is configured (supports ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN)

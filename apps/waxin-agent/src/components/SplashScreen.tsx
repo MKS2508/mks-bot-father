@@ -5,20 +5,42 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import type { ReactElement } from 'react'
 import { extend, useKeyboard, useRenderer } from '@opentui/react'
 import { GifImageRenderable, loadImage } from '@mks2508/opentui-image'
+import { SpinnerRenderable, createPulse } from 'opentui-spinner'
+import 'opentui-spinner/react'
 import type { SplashConfig } from '../types.js'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
+import { Header } from './Header.tsx'
 
 declare module '@opentui/react' {
   interface OpenTUIComponents {
     'terminal-gif': typeof GifImageRenderable
+    'spinner': typeof SpinnerRenderable
   }
 }
 
-extend({ 'terminal-gif': GifImageRenderable })
+extend({ 'terminal-gif': GifImageRenderable, 'spinner': SpinnerRenderable })
+
+const RANDOM_SPINNERS = [
+  'weather',
+  'moon',
+  'runner',
+  'shark',
+  'pong',
+  'bouncingBall',
+  'christmas',
+  'earth',
+  'hearts',
+  'soccerHeader',
+  'mindblown',
+  'monkey',
+  'fingerDance',
+  'fistBump',
+] as const
+
+type RandomSpinner = typeof RANDOM_SPINNERS[number]
 
 const THEME = {
   purple: '#b381c5',
@@ -29,21 +51,13 @@ const THEME = {
   magenta: '#ff6b9d',
 } as const
 
-const ASCII_COLORS = [
-  THEME.purple,
-  THEME.blue,
-  THEME.yellow,
-  THEME.magenta,
-  '#00ff88', // matrix green
-  '#ff0044', // glitch red
-  '#00ffff', // glitch cyan
-] as const
-
 type AsciiEffect = 'glitch' | 'matrix' | 'cyber' | 'scan' | 'decode'
 
 interface SplashScreenProps {
   config: SplashConfig
   onComplete: () => void
+  showHeader?: boolean
+  waxinText?: string
 }
 
 // Configuraciones individuales por GIF
@@ -79,7 +93,6 @@ async function extractColorsFromImage(imagePath: string, numColors = 8): Promise
   try {
     const result = await loadImage(imagePath)
     const data = result.data
-    const width = result.width
 
     // Muestrear píxeles más densamente para mejor extracción
     const pixels: number[][] = []
@@ -209,7 +222,7 @@ interface AnimatedLine {
 }
 
 // Efecto GLITCH - reemplaza caracteres aleatoriamente
-function applyGlitchEffect(lines: string[], frame: number): AnimatedLine[] {
+function applyGlitchEffect(lines: string[], _frame: number): AnimatedLine[] {
   return lines.map((line) => {
     const chars = line.split('')
     const shouldLineGlitch = Math.random() < 0.25
@@ -324,7 +337,7 @@ function applyDecodeEffect(lines: string[], frame: number): AnimatedLine[] {
   })
 }
 
-function renderAnimatedAscii(ascii: string, frame: number, effect: AsciiEffect, scale = false): ReactElement {
+function renderAnimatedAscii(ascii: string, frame: number, effect: AsciiEffect, scale = false) {
   const lines = ascii.split('\n')
 
   // Primero aplicar efecto y obtener líneas animadas
@@ -358,10 +371,10 @@ function renderAnimatedAscii(ascii: string, frame: number, effect: AsciiEffect, 
     }))
   }
 
-  // Convertir a ReactElement
+  // Convertir a JSX.Element
   return (
     <box style={{ flexDirection: 'column' }}>
-      {animatedLines.map((line, i) => (
+      {animatedLines.map((line: AnimatedLine, i: number) => (
         <text key={i} style={{ fg: line.color as any }}>
           {line.text}
         </text>
@@ -370,17 +383,33 @@ function renderAnimatedAscii(ascii: string, frame: number, effect: AsciiEffect, 
   )
 }
 
-export const SplashScreen = ({ config, onComplete }: SplashScreenProps) => {
+export const SplashScreen = ({ config, onComplete, showHeader = false, waxinText: propWaxinText }: SplashScreenProps) => {
   const renderer = useRenderer()
   const [elapsed, setElapsed] = useState(0)
   const [currentGifIndex, setCurrentGifIndex] = useState(0)
   const [userInteracted, setUserInteracted] = useState(false)
   const [gradientColors, setGradientColors] = useState<string[]>(['#000000', '#111111'])
   const [asciiArt, setAsciiArt] = useState<string>('')
-  const [waxinText, setWaxinText] = useState<string>('')
+  const [localWaxinText, setLocalWaxinText] = useState<string>('')
   const [asciiFrame, setAsciiFrame] = useState(0)
   const [asciiEffect, setAsciiEffect] = useState<AsciiEffect>('glitch')
+  const [currentSpinner, setCurrentSpinner] = useState<RandomSpinner>('weather')
   const colorCache = useRef<Map<string, string[]>>(new Map())
+
+  // Usar prop waxinText si se proporciona, de lo contrario usar estado local
+  const waxinText = propWaxinText || localWaxinText
+
+  // Rotar spinners cada 2 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSpinner(prev => {
+        const currentIndex = RANDOM_SPINNERS.indexOf(prev)
+        const nextIndex = (currentIndex + 1) % RANDOM_SPINNERS.length
+        return RANDOM_SPINNERS[nextIndex]
+      })
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Cargar ASCII art al montar
   useEffect(() => {
@@ -395,9 +424,9 @@ export const SplashScreen = ({ config, onComplete }: SplashScreenProps) => {
     try {
       const waxinPath = resolve(process.cwd(), 'assets/waxin.ascii.txt')
       const waxinContent = readFileSync(waxinPath, 'utf-8')
-      setWaxinText(waxinContent.trim())
+      setLocalWaxinText(waxinContent.trim())
     } catch {
-      setWaxinText('WAXIN MK1 😈')
+      setLocalWaxinText('WAXIN MK1 😈')
     }
   }, [])
 
@@ -654,62 +683,114 @@ export const SplashScreen = ({ config, onComplete }: SplashScreenProps) => {
           )}
         </box>
 
-        {/* Texto WAXIN - SIEMPRE visible (tanto en ASCII como en GIF) */}
-        {waxinText && (
-          <box style={{ marginTop: 1 }}>
-            {renderAnimatedAscii(waxinText, asciiFrame + 30, asciiEffect, false)}
-          </box>
-        )}
-
-        {/* Fila inferior: Controles */}
+        {/* Panel inferior: WAXIN ASCII + Progress + Spinners con fondo sólido */}
         <box
           style={{
             flexDirection: 'column',
             alignItems: 'center',
+            justifyContent: 'center',
             marginTop: 1,
           }}
         >
-          {/* Solo mostrar barra de progreso si NO hay interacción */}
+          {/* Header animado (si showHeader=true) O texto estático en borde */}
+          {showHeader ? (
+            <Header waxinText={waxinText || 'WAXIN MK1 😈'} />
+          ) : (
+            <>
+              {/* Borde superior del panel */}
+              <text style={{ fg: THEME.purple, bg: '#1a0a1a' }}>
+                {'╭' + '─'.repeat(50) + '╮'}
+              </text>
+
+              {/* Texto WAXIN con fondo */}
+              {waxinText && waxinText.split('\n').map((line, i) => (
+                <text key={`waxin-${i}`} style={{ fg: THEME.magenta, bg: '#1a0a1a' }}>
+                  {'│ '}{line.padEnd(48)}{' │'}
+                </text>
+              ))}
+
+              {/* Separador */}
+              <text style={{ fg: THEME.purple, bg: '#1a0a1a' }}>
+                {'├' + '─'.repeat(50) + '┤'}
+              </text>
+            </>
+          )}
+
+          {/* Spinner + barra de progreso si NO hay interacción */}
           {!userInteracted && (
-            <box style={{ flexDirection: 'row', marginBottom: 1 }}>
-              <text style={{ fg: THEME.purple }}>
+            <box style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <text style={{ fg: THEME.purple, bg: '#1a0a1a' }}>{'│ '}</text>
+              <spinner
+                name={currentSpinner}
+                color={createPulse([THEME.purple, THEME.magenta, THEME.blue, THEME.yellow], 0.8)}
+                backgroundColor="#1a0a1a"
+              />
+              <text style={{ fg: THEME.textMuted, bg: '#1a0a1a' }}> </text>
+              <text style={{ fg: THEME.purple, bg: '#1a0a1a' }}>
                 {'█'.repeat(Math.floor(progress / 4))}
               </text>
-              <text style={{ fg: THEME.textMuted }}>
+              <text style={{ fg: THEME.textMuted, bg: '#1a0a1a' }}>
                 {'░'.repeat(25 - Math.floor(progress / 4))}
               </text>
+              <text style={{ fg: THEME.textMuted, bg: '#1a0a1a' }}> </text>
+              <spinner
+                name={currentSpinner}
+                color={createPulse([THEME.yellow, THEME.blue, THEME.magenta, THEME.purple], 0.8)}
+                backgroundColor="#1a0a1a"
+              />
+              <text style={{ fg: THEME.purple, bg: '#1a0a1a' }}>{' │'}</text>
             </box>
           )}
 
-          {/* Contador de GIFs */}
-          <box style={{ flexDirection: 'row', marginBottom: 1 }}>
-            <text style={{ fg: THEME.textMuted }}>GIF </text>
-            <text style={{ fg: THEME.blue }}>
+          {/* Borde inferior del panel - solo si NO es showHeader */}
+          {!showHeader && (
+            <text style={{ fg: THEME.purple, bg: '#1a0a1a' }}>
+              {'╰' + '─'.repeat(50) + '╯'}
+            </text>
+          )}
+        </box>
+
+        {/* Footer: Controles con fondo sólido */}
+        <box
+          style={{
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: 1,
+          }}
+        >
+          {/* Línea de fondo para el footer */}
+          <box style={{ flexDirection: 'row' }}>
+            <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{'  GIF '}</text>
+            <text style={{ fg: THEME.blue, bg: '#0a0a12' }}>
               {currentGifIndex + 1}/{shuffledGifs.length}
             </text>
+            {!userInteracted && remaining > 0 && (
+              <>
+                <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' · '}</text>
+                <text style={{ fg: THEME.yellow, bg: '#0a0a12' }}>{remaining}s</text>
+              </>
+            )}
+            <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{'  '}</text>
           </box>
 
-          {/* Instrucciones dinámicas */}
-          <box style={{ flexDirection: 'row' }}>
+          {/* Instrucciones dinámicas con fondo */}
+          <box style={{ flexDirection: 'row', marginTop: 1 }}>
             {!userInteracted ? (
               <>
-                <text style={{ fg: THEME.textMuted }}>◄ ► </text>
-                <text style={{ fg: THEME.textDim }}>navegar </text>
-                <text style={{ fg: THEME.textMuted }}> · ESC </text>
-                <text style={{ fg: THEME.textDim }}>saltar</text>
-                {!userInteracted && remaining > 0 && (
-                  <>
-                    <text style={{ fg: THEME.textMuted }}> · </text>
-                    <text style={{ fg: THEME.textDim }}>{remaining}s</text>
-                  </>
-                )}
+                <text style={{ fg: THEME.purple, bg: '#0a0a12' }}>{'  ◄ ► '}</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>navegar</text>
+                <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' │ '}</text>
+                <text style={{ fg: THEME.purple, bg: '#0a0a12' }}>ESC</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' saltar  '}</text>
               </>
             ) : (
               <>
-                <text style={{ fg: THEME.yellow }}>◄ ► </text>
-                <text style={{ fg: THEME.textDim }}>navegar </text>
-                <text style={{ fg: THEME.yellow }}> · ENTER </text>
-                <text style={{ fg: THEME.textDim }}>continuar</text>
+                <text style={{ fg: THEME.yellow, bg: '#0a0a12' }}>{'  ◄ ► '}</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>navegar</text>
+                <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' │ '}</text>
+                <text style={{ fg: THEME.yellow, bg: '#0a0a12' }}>ENTER</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' continuar  '}</text>
               </>
             )}
           </box>
