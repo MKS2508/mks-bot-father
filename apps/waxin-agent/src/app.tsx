@@ -10,24 +10,17 @@ import { useAgent } from './hooks/useAgent.js'
 import { log, tuiLogger } from './lib/json-logger.js'
 import { updateStats } from './hooks/useStats.js'
 import {
-  Banner,
   initImageBackends,
-  QuestionModal,
-  Topbar,
-  FloatingImage,
   initFloatingImageBackends,
-  ThinkingIndicator,
+  QuestionModal,
   SplashScreen,
-  Header,
-  StatsBarMinimal,
+  PromptBox,
   PositionedOverlay,
   DEFAULT_OVERLAY_CONFIGS,
   getOverlayComponent,
-  PromptBox,
-  StatusBar,
-  MessageList,
   Footer
 } from './components/index.js'
+import { EmptyLayout, ChatLayout } from './layouts/index.js'
 import { HelpDialogContent } from './components/help/HelpDialogContent.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
 import type { BannerConfig, UserQuestion } from './types.js'
@@ -660,95 +653,36 @@ const AppContent = () => {
       }}
     >
       {hasMessages ? (
-        <>
-          {/* Chat Layout with Messages: Header (DEBUG mode) + Topbar + Expanded Scrollbox + Prompt + FloatingImage */}
-          {SHOW_HEADER && <Header waxinText={waxinText || 'WAXIN MK1 😈'} />}
-          <Topbar text="WAXIN MK1" font="banner" isStreaming={isStreaming} isExecuting={isExecuting} />
-
-          {/* Messages Area - EXPANDED */}
-          <box
-            style={{
-              flexGrow: 1,
-              marginTop: 1,
-              paddingLeft: 1,
-              paddingRight: 1,
-              minHeight: '60%',
-            }}
-          >
-            <MessageList messages={messages} isExecuting={isExecuting} />
-          </box>
-
-          {/* Thinking Indicator - animated spinner with personality words */}
-          {isExecuting && (
-            <ThinkingIndicator isStreaming={isStreaming} />
-          )}
-
-          {/* Prompt */}
-          <PromptBox
-            centered={false}
-            bannerSubtitle={bannerConfig.subtitle}
-            textareaRef={textareaRef}
-            textareaFocused={textareaFocused}
-            isExecuting={isExecuting}
-            currentAgentInfo={currentAgentInfo}
-            modelBadge={modelBadge}
-            onSubmit={handleTextareaSubmit}
-          />
-
-          {/* Status Bar */}
-          <StatusBar
-            isStreaming={isStreaming}
-            isExecuting={isExecuting}
-            currentAgentInfo={currentAgentInfo}
-            modelBadge={modelBadge}
-          />
-
-          {/* Floating Image - bottom-right (hidden when dialog is open) */}
-          {!isDialogOpen && (
-            <FloatingImage
-              config={FLOATING_IMAGE_CONFIG}
-              onImageError={(err) => log.warn('TUI', 'Floating image failed to load', { error: err.message })}
-            />
-          )}
-        </>
+        <ChatLayout
+          messages={messages}
+          isExecuting={isExecuting}
+          isStreaming={isStreaming}
+          currentAgentInfo={currentAgentInfo}
+          modelBadge={modelBadge}
+          showHeader={SHOW_HEADER}
+          waxinText={waxinText || 'WAXIN MK1 😈'}
+          isDialogOpen={isDialogOpen}
+        />
       ) : (
-        <>
-          {/* Header con WAXIN animado - arriba del todo (DEBUG mode) */}
-          {SHOW_HEADER && <Header waxinText={waxinText || 'WAXIN MK1 😈'} />}
-
-          {/* Stats Bar - siempre visible debajo del header */}
-          <StatsBarMinimal isStreaming={isStreaming} isExecuting={isExecuting} />
-
-          {/* Empty Layout: Centered Banner + Centered Prompt */}
-          <box
-            style={{
-              flexGrow: 1,
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            {/* Banner hidden when dialog is open (terminal images bypass z-index) */}
-            {!isDialogOpen && (
-              <Banner
-                config={bannerConfig}
-                onImageError={(err) => log.warn('TUI', 'Banner image failed to load', { error: err.message })}
-              />
-            )}
-
-            <PromptBox
-              centered={true}
-              bannerSubtitle={bannerConfig.subtitle}
-              textareaRef={textareaRef}
-              textareaFocused={textareaFocused}
-              isExecuting={isExecuting}
-              currentAgentInfo={currentAgentInfo}
-              modelBadge={modelBadge}
-              onSubmit={handleTextareaSubmit}
-            />
-          </box>
-        </>
+        <EmptyLayout
+          bannerConfig={bannerConfig}
+          isExecuting={isExecuting}
+          isStreaming={isStreaming}
+          isDialogOpen={isDialogOpen}
+        />
       )}
+
+      {/* PromptBox - ALWAYS RENDERED (same instance, never unmounts) */}
+      <PromptBox
+        centered={!hasMessages}
+        bannerSubtitle={bannerConfig.subtitle}
+        textareaRef={textareaRef}
+        textareaFocused={textareaFocused}
+        isExecuting={isExecuting}
+        currentAgentInfo={currentAgentInfo}
+        modelBadge={modelBadge}
+        onSubmit={handleTextareaSubmit}
+      />
 
       {/* Footer - always visible */}
       <Footer />

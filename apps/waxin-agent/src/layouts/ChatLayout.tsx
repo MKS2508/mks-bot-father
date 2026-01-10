@@ -1,19 +1,17 @@
 /**
  * ChatLayout - Shown when there are messages
- * Displays Header, Topbar, MessageList, ThinkingIndicator, PromptBox, StatusBar, FloatingImage
+ * NOTE: PromptBox is now rendered OUTSIDE layouts to prevent unmounting/remounting
  */
 
-import type { TextareaRenderable } from '@opentui/core'
 import { Header } from '../components/Header.js'
 import { Topbar } from '../components/Topbar.js'
 import { MessageList } from '../components/MessageList.js'
 import { ThinkingIndicator } from '../components/ThinkingIndicator.js'
-import { PromptBox } from '../components/PromptBox.js'
 import { StatusBar } from '../components/StatusBar.js'
 import { FloatingImage } from '../components/FloatingImage.js'
 import { log } from '../lib/json-logger.js'
 import { FLOATING_IMAGE_CONFIG } from '../types.js'
-import type { Message, BannerConfig, AgentInfo } from '../types.js'
+import type { Message, AgentInfo } from '../types.js'
 
 interface ChatLayoutProps {
   messages: Message[]
@@ -21,10 +19,6 @@ interface ChatLayoutProps {
   isStreaming: boolean
   currentAgentInfo: AgentInfo | undefined
   modelBadge: string
-  bannerConfig: BannerConfig
-  textareaRef: React.RefObject<TextareaRenderable | null>
-  textareaFocused: boolean
-  handleTextareaSubmit: () => void
   showHeader?: boolean
   waxinText?: string
   isDialogOpen?: boolean
@@ -36,17 +30,13 @@ export function ChatLayout({
   isStreaming,
   currentAgentInfo,
   modelBadge,
-  bannerConfig,
-  textareaRef,
-  textareaFocused,
-  handleTextareaSubmit,
   showHeader = false,
   waxinText = 'WAXIN MK1 😈',
   isDialogOpen = false,
 }: ChatLayoutProps) {
   return (
     <>
-      {/* Chat Layout with Messages: Header (DEBUG mode) + Topbar + Expanded Scrollbox + Prompt + FloatingImage */}
+      {/* Chat Layout with Messages: Header (DEBUG mode) + Topbar + Expanded Scrollbox */}
       {showHeader && <Header waxinText={waxinText} />}
       <Topbar text="WAXIN MK1" font="banner" isStreaming={isStreaming} isExecuting={isExecuting} />
 
@@ -67,18 +57,6 @@ export function ChatLayout({
       {isExecuting && (
         <ThinkingIndicator isStreaming={isStreaming} />
       )}
-
-      {/* Prompt */}
-      <PromptBox
-        centered={false}
-        bannerSubtitle={bannerConfig.subtitle}
-        textareaRef={textareaRef}
-        textareaFocused={textareaFocused}
-        isExecuting={isExecuting}
-        currentAgentInfo={currentAgentInfo}
-        modelBadge={modelBadge}
-        onSubmit={handleTextareaSubmit}
-      />
 
       {/* Status Bar */}
       <StatusBar
