@@ -70,6 +70,47 @@ mbf create my-bot --full
 mbf status
 ```
 
+## Testing
+
+**CRITICAL**: Always use `vitest` for running tests (globally installed). Do NOT use `bun test`.
+
+```bash
+# Run all tests (from any package directory)
+vitest run
+
+# Run tests with coverage
+vitest run --coverage
+
+# Watch mode for development
+vitest
+
+# Run specific test file
+vitest run src/tools/__tests__/coolify.test.ts
+```
+
+### Test Structure
+
+- **Core package** (`core/packages/main`): 183+ tests, ~97% coverage
+- **Agent** (`apps/agent`): 148+ tests, ~90% coverage
+
+### Mocking Patterns
+
+Tests use `vi.mock` for module mocking. Important patterns:
+
+```typescript
+// Mock must be inline (hoisted to top of file)
+vi.mock('@mks2508/mks-bot-father', () => ({
+  getService: () => ({ method: vi.fn() })
+}))
+
+// Use vi.resetModules() for fresh module state in beforeEach
+beforeEach(async () => {
+  vi.clearAllMocks()
+  vi.resetModules()
+  await import('../module.js')
+})
+```
+
 ## Build Configuration
 
 ### Build Process

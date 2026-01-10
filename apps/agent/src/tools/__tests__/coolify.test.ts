@@ -5,6 +5,14 @@ const mockCoolifyInit = vi.fn()
 const mockCoolifyDeploy = vi.fn()
 const mockCoolifySetEnvVars = vi.fn()
 const mockCoolifyGetStatus = vi.fn()
+const mockCoolifyListApplications = vi.fn()
+const mockCoolifyDeleteApplication = vi.fn()
+const mockCoolifyGetLogs = vi.fn()
+const mockCoolifyStartApplication = vi.fn()
+const mockCoolifyStopApplication = vi.fn()
+const mockCoolifyRestartApplication = vi.fn()
+const mockCoolifyGetDeploymentHistory = vi.fn()
+const mockCoolifyUpdateApplication = vi.fn()
 
 vi.mock('@mks2508/mks-bot-father', () => ({
   getCoolifyService: () => ({
@@ -12,6 +20,14 @@ vi.mock('@mks2508/mks-bot-father', () => ({
     deploy: mockCoolifyDeploy,
     setEnvironmentVariables: mockCoolifySetEnvVars,
     getApplicationStatus: mockCoolifyGetStatus,
+    listApplications: mockCoolifyListApplications,
+    deleteApplication: mockCoolifyDeleteApplication,
+    getApplicationLogs: mockCoolifyGetLogs,
+    startApplication: mockCoolifyStartApplication,
+    stopApplication: mockCoolifyStopApplication,
+    restartApplication: mockCoolifyRestartApplication,
+    getApplicationDeploymentHistory: mockCoolifyGetDeploymentHistory,
+    updateApplication: mockCoolifyUpdateApplication,
   }),
 }))
 
@@ -320,6 +336,319 @@ describe('Coolify Tools', () => {
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Error')
       expect(result.content[0].text).toContain('Connection refused')
+    })
+  })
+
+  describe('list_applications tool', () => {
+    it('should list all applications', async () => {
+      mockCoolifyListApplications.mockResolvedValue(
+        ok([
+          { uuid: 'app-1', name: 'App 1', status: 'running' },
+          { uuid: 'app-2', name: 'App 2', status: 'stopped' },
+        ])
+      )
+
+      const tool = getTool('list_applications')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.count).toBe(2)
+      expect(parsed.applications).toHaveLength(2)
+    })
+
+    it('should filter by team ID', async () => {
+      mockCoolifyListApplications.mockResolvedValue(ok([]))
+
+      const tool = getTool('list_applications')
+      await tool!.handler({ teamId: 'team-123' })
+
+      expect(mockCoolifyListApplications).toHaveBeenCalledWith('team-123', undefined)
+    })
+
+    it('should filter by project ID', async () => {
+      mockCoolifyListApplications.mockResolvedValue(ok([]))
+
+      const tool = getTool('list_applications')
+      await tool!.handler({ projectId: 'project-456' })
+
+      expect(mockCoolifyListApplications).toHaveBeenCalledWith(undefined, 'project-456')
+    })
+
+    it('should handle empty list', async () => {
+      mockCoolifyListApplications.mockResolvedValue(ok([]))
+
+      const tool = getTool('list_applications')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.count).toBe(0)
+    })
+
+    it('should handle list failure', async () => {
+      mockCoolifyListApplications.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Unauthorized' })
+      )
+
+      const tool = getTool('list_applications')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to list applications')
+    })
+  })
+
+  describe('delete_application tool', () => {
+    it('should delete application successfully', async () => {
+      mockCoolifyDeleteApplication.mockResolvedValue(ok(undefined))
+
+      const tool = getTool('delete_application')
+      const result = await tool!.handler({ uuid: 'app-to-delete' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.message).toContain('deleted successfully')
+    })
+
+    it('should handle delete failure', async () => {
+      mockCoolifyDeleteApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Application not found' })
+      )
+
+      const tool = getTool('delete_application')
+      const result = await tool!.handler({ uuid: 'nonexistent' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to delete application')
+    })
+  })
+
+  describe('get_application_logs tool', () => {
+    it('should get logs successfully', async () => {
+      mockCoolifyGetLogs.mockResolvedValue(
+        ok({
+          timestamp: '2024-01-08T10:00:00Z',
+          logs: ['Log line 1', 'Log line 2', 'Log line 3'],
+        })
+      )
+
+      const tool = getTool('get_application_logs')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.logCount).toBe(3)
+    })
+
+    it('should pass tail parameter', async () => {
+      mockCoolifyGetLogs.mockResolvedValue(ok({ timestamp: '', logs: [] }))
+
+      const tool = getTool('get_application_logs')
+      await tool!.handler({ uuid: 'app-uuid', tail: 50 })
+
+      expect(mockCoolifyGetLogs).toHaveBeenCalledWith('app-uuid', { tail: 50 })
+    })
+
+    it('should handle logs failure', async () => {
+      mockCoolifyGetLogs.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Container not running' })
+      )
+
+      const tool = getTool('get_application_logs')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to get logs')
+    })
+  })
+
+  describe('start_application tool', () => {
+    it('should start application successfully', async () => {
+      mockCoolifyStartApplication.mockResolvedValue(
+        ok({ uuid: 'app-uuid', status: 'running' })
+      )
+
+      const tool = getTool('start_application')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.message).toContain('started')
+    })
+
+    it('should handle start failure', async () => {
+      mockCoolifyStartApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Already running' })
+      )
+
+      const tool = getTool('start_application')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to start application')
+    })
+  })
+
+  describe('stop_application tool', () => {
+    it('should stop application successfully', async () => {
+      mockCoolifyStopApplication.mockResolvedValue(
+        ok({ uuid: 'app-uuid', status: 'stopped' })
+      )
+
+      const tool = getTool('stop_application')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.message).toContain('stopped')
+    })
+
+    it('should handle stop failure', async () => {
+      mockCoolifyStopApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Already stopped' })
+      )
+
+      const tool = getTool('stop_application')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to stop application')
+    })
+  })
+
+  describe('restart_application tool', () => {
+    it('should restart application successfully', async () => {
+      mockCoolifyRestartApplication.mockResolvedValue(
+        ok({ uuid: 'app-uuid', status: 'running' })
+      )
+
+      const tool = getTool('restart_application')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.message).toContain('restarted')
+    })
+
+    it('should handle restart failure', async () => {
+      mockCoolifyRestartApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Container error' })
+      )
+
+      const tool = getTool('restart_application')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to restart application')
+    })
+  })
+
+  describe('get_deployment_history tool', () => {
+    it('should get deployment history', async () => {
+      mockCoolifyGetDeploymentHistory.mockResolvedValue(
+        ok([
+          { uuid: 'deploy-1', status: 'finished', createdAt: '2024-01-08' },
+          { uuid: 'deploy-2', status: 'finished', createdAt: '2024-01-07' },
+        ])
+      )
+
+      const tool = getTool('get_deployment_history')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.count).toBe(2)
+    })
+
+    it('should handle empty history', async () => {
+      mockCoolifyGetDeploymentHistory.mockResolvedValue(ok([]))
+
+      const tool = getTool('get_deployment_history')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.count).toBe(0)
+    })
+
+    it('should handle history failure', async () => {
+      mockCoolifyGetDeploymentHistory.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Not found' })
+      )
+
+      const tool = getTool('get_deployment_history')
+      const result = await tool!.handler({ uuid: 'app-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to get deployment history')
+    })
+  })
+
+  describe('update_application tool', () => {
+    it('should update application successfully', async () => {
+      mockCoolifyUpdateApplication.mockResolvedValue(
+        ok({ uuid: 'app-uuid', name: 'Updated App' })
+      )
+
+      const tool = getTool('update_application')
+      const result = await tool!.handler({
+        uuid: 'app-uuid',
+        name: 'Updated App',
+        description: 'New description',
+      })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.message).toContain('updated')
+    })
+
+    it('should pass build settings', async () => {
+      mockCoolifyUpdateApplication.mockResolvedValue(ok({ uuid: 'app-uuid' }))
+
+      const tool = getTool('update_application')
+      await tool!.handler({
+        uuid: 'app-uuid',
+        buildPack: 'nixpacks',
+        gitBranch: 'main',
+        installCommand: 'bun install',
+        buildCommand: 'bun run build',
+        startCommand: 'bun run start',
+      })
+
+      expect(mockCoolifyUpdateApplication).toHaveBeenCalledWith('app-uuid', {
+        name: undefined,
+        description: undefined,
+        buildPack: 'nixpacks',
+        gitBranch: 'main',
+        portsExposes: undefined,
+        installCommand: 'bun install',
+        buildCommand: 'bun run build',
+        startCommand: 'bun run start',
+      })
+    })
+
+    it('should handle update failure', async () => {
+      mockCoolifyUpdateApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Invalid build pack' })
+      )
+
+      const tool = getTool('update_application')
+      const result = await tool!.handler({
+        uuid: 'app-uuid',
+        buildPack: 'invalid' as any,
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to update application')
     })
   })
 })
