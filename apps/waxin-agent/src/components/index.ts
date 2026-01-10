@@ -7,6 +7,8 @@ export { ThinkingIndicator } from './ThinkingIndicator.js'
 export { SplashScreen } from './SplashScreen.js'
 export { Header } from './Header.js'
 export { StatsBar, StatsBarMinimal } from './StatsBar.js'
+export { ProgressBar } from './ProgressBar.js'
+export { ToolResultCard, CompactToolResult } from './ToolResultCard.js'
 
 // New extracted components
 export { PromptBox } from './PromptBox.js'

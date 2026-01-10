@@ -13,21 +13,42 @@ import {
 import { agentLogger } from './logger.js'
 import { categorizeError } from './error-categorizer.js'
 import { log } from './json-logger.js'
-import type { AgentCallbacks } from '../types.js'
+import type { AgentCallbacks, ToolExecution } from '../types.js'
 
-export type { AgentResult, AgentOptions, ToolCallLog, AgentCallbacks }
+export type { AgentResult, AgentOptions, ToolCallLog, AgentCallbacks, ToolExecution }
 
 interface ContentBlock {
   type: string
   text?: string
   name?: string
   input?: unknown
+  id?: string
+  result?: unknown
+  isError?: boolean
 }
+
+interface ConversationMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
+const MAX_CONVERSATION_HISTORY = 20
 
 export class AgentBridge {
   private currentResult: AgentResult | null = null
   private sessionId = ''
   private toolCalls: ToolCallLog[] = []
+  private toolExecutions: Map<string, ToolExecution> = new Map()
+  private conversationHistory: ConversationMessage[] = []
+
+  // Pending tool response for AskUserQuestion flow
+  // NOTE: The SDK doesn't support pausing mid-execution, so this requires
+  // a custom tui_ask_user MCP tool that handles UI interaction synchronously
+  private pendingToolResponse: {
+    toolId: string
+    resolve: (response: unknown) => void
+  } | null = null
 
   async execute(
     prompt: string,
@@ -39,19 +60,26 @@ export class AgentBridge {
     log.info('AGENT', 'AgentBridge.execute() called', {
       promptLength: prompt.length,
       promptPreview: prompt.slice(0, 80),
-      hasOptions: Object.keys(options).length > 0
+      hasOptions: Object.keys(options).length > 0,
+      hasSessionId: !!this.sessionId,
+      historyLength: this.conversationHistory.length
     })
 
     agentLogger.info(`Starting agent execution`)
     agentLogger.info(`Prompt: "${prompt.slice(0, 50)}..."`)
 
+    // Build enriched prompt with conversation context
+    const enrichedPrompt = this.buildContextPrompt(prompt)
+
     try {
       log.debug('AGENT', 'Calling runAgent() from bot-manager-agent', {
-        prompt: prompt.slice(0, 50)
+        prompt: prompt.slice(0, 50),
+        resumeSession: this.sessionId || 'none'
       })
 
-      const result = await runAgent(prompt, {
+      const result = await runAgent(enrichedPrompt, {
         ...options,
+        resumeSession: this.sessionId || undefined,
         onMessage: (message) => {
           log.debug('AGENT', 'onMessage callback triggered', {
             messageType: typeof message === 'object' ? (message as {type?: string}).type : 'unknown'
@@ -64,6 +92,26 @@ export class AgentBridge {
       this.currentResult = result
       this.sessionId = result.sessionId
       this.toolCalls = result.toolCalls
+
+      // Save to conversation history
+      this.conversationHistory.push({
+        role: 'user',
+        content: prompt,
+        timestamp: new Date().toISOString()
+      })
+
+      if (result.result) {
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: result.result,
+          timestamp: new Date().toISOString()
+        })
+      }
+
+      // Trim history to max size
+      if (this.conversationHistory.length > MAX_CONVERSATION_HISTORY) {
+        this.conversationHistory = this.conversationHistory.slice(-MAX_CONVERSATION_HISTORY)
+      }
 
       log.info('AGENT', 'runAgent() completed successfully', {
         sessionId: result.sessionId,
@@ -112,6 +160,20 @@ export class AgentBridge {
       this.currentResult = fallbackResult
       return fallbackResult
     }
+  }
+
+  private buildContextPrompt(prompt: string): string {
+    if (this.conversationHistory.length === 0) {
+      return prompt
+    }
+
+    const recent = this.conversationHistory.slice(-10)
+    const contextStr = recent.map(m => {
+      const role = m.role === 'user' ? 'Human' : 'Assistant'
+      return `${role}: ${m.content}`
+    }).join('\n\n')
+
+    return `## Conversación previa:\n${contextStr}\n\n## Nueva solicitud:\n${prompt}`
   }
 
   private handleMessage(message: unknown, callbacks: AgentCallbacks): void {
@@ -179,6 +241,41 @@ export class AgentBridge {
               : []
           })
           callbacks.onToolCall?.(block.name, block.input)
+
+          // Track tool execution start
+          const toolId = block.id || `${block.name}_${Date.now()}`
+          const execution: ToolExecution = {
+            tool: block.name,
+            input: block.input,
+            startTime: Date.now()
+          }
+          this.toolExecutions.set(toolId, execution)
+          log.debug('TOOL', `Tool execution started: ${block.name}`, { toolId })
+        } else if (block.type === 'tool_result' && block.id) {
+          // Track tool execution completion
+          const execution = this.toolExecutions.get(block.id)
+          if (execution) {
+            const endTime = Date.now()
+            const duration = endTime - execution.startTime
+
+            const completedExecution: ToolExecution = {
+              ...execution,
+              endTime,
+              duration,
+              success: !block.isError,
+              result: block.result,
+              error: block.isError ? (typeof block.content === 'string' ? block.content : 'Tool execution failed') : undefined
+            }
+
+            this.toolExecutions.set(block.id, completedExecution)
+            log.debug('TOOL', `Tool execution completed: ${completedExecution.tool}`, {
+              toolId: block.id,
+              duration,
+              success: completedExecution.success
+            })
+
+            callbacks.onToolComplete?.(completedExecution)
+          }
         }
       }
     }
@@ -219,10 +316,42 @@ export class AgentBridge {
     return this.toolCalls
   }
 
+  getToolExecutions(): ToolExecution[] {
+    return Array.from(this.toolExecutions.values())
+  }
+
   clear(): void {
     this.currentResult = null
     this.sessionId = ''
     this.toolCalls = []
+    this.toolExecutions.clear()
+    this.pendingToolResponse = null
+    this.conversationHistory = []
+    log.info('AGENT', 'Session cleared', { clearedHistory: true })
+  }
+
+  getConversationHistory(): ConversationMessage[] {
+    return [...this.conversationHistory]
+  }
+
+  /**
+   * Submit a tool response for a pending AskUserQuestion.
+   * This is called when the user answers a question in the TUI.
+   *
+   * NOTE: The SDK doesn't support pausing/resuming execution mid-stream.
+   * To properly use this, you need to create a custom `tui_ask_user` MCP tool
+   * that handles the UI interaction synchronously within the tool handler.
+   *
+   * @param toolId - The tool ID to respond to
+   * @param response - The user's response
+   */
+  submitToolResponse(toolId: string, response: unknown): void {
+    if (this.pendingToolResponse?.toolId === toolId) {
+      this.pendingToolResponse.resolve(response)
+      this.pendingToolResponse = null
+    } else {
+      log.warn('TUI', 'No pending tool response found', { toolId })
+    }
   }
 }
 

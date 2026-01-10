@@ -209,24 +209,57 @@ Update TUI panels (stats, output, logs)
 - `enableAutoProcessing(intervalMs)` - Start queue processing
 - `disableAutoProcessing()` - Stop queue processing
 
-### TUI Panels
+### TUI Components
 
-**Stats Panel** (`components/StatsPanel.tsx`)
-- Displays current agent stats (tokens, cost, duration, tools, errors)
+**Core Components** (`components/`):
+- **Banner** - ASCII art banner with optional image support (terminal-image)
+- **Topbar** - Top navigation bar with streaming status
+- **StatsBarMinimal** - Minimal stats bar (always visible when no messages)
+- **StatusBar** - Bottom status bar with agent info and stats
+- **PromptBox** - Input textarea with agent selector and model badge
+- **MessageList** - Scrollable message history with chat bubbles
+- **ThinkingIndicator** - Animated spinner with personality words during execution
 
-**Output Panel** (`components/OutputPanel.tsx`)
-- Shows assistant messages (streaming or final)
+**Dialog/Overlay Components** (`components/overlays/`):
+- **PositionedOverlay** - Generic positioned overlay with title and backdrop
+- **QuestionModal** - Modal for AskUserQuestion tool integration
+- Help dialog with clickable options that open overlays
 
-**Logs Panel** (`components/LogsPanel.tsx`)
-- Real-time log viewer with filtering by level (DEBUG/INFO/WARN/ERROR)
-- Press Ctrl+L to toggle log level
+The dialog system uses `@opentui-ui/dialog` with React context:
+```typescript
+import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
 
-**Tools Panel** (`components/ToolsPanel.tsx`)
-- Displays tool calls and results
+// Wrap app with DialogProvider
+<DialogProvider size="large" backdropColor="#1a1a2e">
+  <AppContent />
+</DialogProvider>
 
-**Input Panel** (`components/InputPanel.tsx`)
-- Textarea for user prompts
-- Enter: send, Shift+Enter: new line, Ctrl+K: clear
+// Use dialog in components
+const dialog = useDialog()
+const isOpen = useDialogState(s => s.isOpen)
+
+dialog.show({
+  content: () => <MyContent />,
+  size: 'large',
+  closeOnEscape: true
+})
+```
+
+**Special Components**:
+- **SplashScreen** - Animated splash screen on startup (skippable with Esc)
+- **FloatingImage** - Bottom-right floating image (optional logo/art)
+- **Header** - DEBUG mode header showing WAXIN ASCII art
+
+**Theme** (`theme/colors.ts`):
+```typescript
+THEME = {
+  bg: '#262335', bgDark: '#1a1a2e', bgPanel: '#2a2139',
+  purple: '#b381c5', magenta: '#ff7edb', cyan: '#36f9f6',
+  blue: '#6e95ff', green: '#72f1b8', yellow: '#fede5d',
+  orange: '#ff8b39', red: '#fe4450',
+  text: '#ffffff', textDim: '#848bbd', textMuted: '#495495'
+}
+```
 
 ### Main App Layout
 
@@ -245,14 +278,35 @@ Update TUI panels (stats, output, logs)
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Keybindings
+### Keybindings & Shortcuts System
 
-- **Enter** - Send prompt
-- **Shift+Enter** - New line in textarea
-- **Ctrl+L** - Toggle log level filter
-- **Ctrl+K** - Clear input
-- **Esc** - Exit TUI
-- **F1** - Help
+The TUI uses a centralized shortcuts system (`shortcuts.ts`) with categories:
+
+**Help** (F1 or Ctrl+H):
+- Show/hide help dialog with clickable options
+
+**Focus** (Tab or Shift+Tab):
+- Toggle textarea focus for keyboard input
+
+**Debug** (Ctrl+D):
+- Toggle debug mode (shows overlay with colors, keypress, FPS, performance)
+- 1-4: Switch between debug tabs (Esc to close)
+
+**Messages** (Ctrl+M):
+- Clear message history
+
+**Navigation**:
+- Ctrl+X: Switch agent type (build → plan → code)
+- Esc: Exit TUI (or close dialogs)
+
+**System**:
+- Ctrl+Q: Quit application
+
+**Testing**:
+- Test single-select question modal
+- Test multi-select question modal
+
+**Sequence Shortcuts**: Some shortcuts use key sequences (e.g., `g g` for jump-to-top in future features). The `sequenceTrackerRef` in app.tsx handles multi-key sequences.
 
 ---
 
@@ -390,18 +444,56 @@ Add new callbacks to `src/types.ts` and implement in `src/app.tsx`.
 ```
 src/
 ├── index.ts              # Entry point (dotenv, startTUI)
-├── app.tsx               # Main TUI application
+├── app.tsx               # Main TUI application (React)
+├── shortcuts.ts          # Centralized shortcuts system
 ├── types.ts              # Shared types (LogLevel, AgentStats, etc.)
-├── components/           # TUI panels (Stats, Output, Logs, Tools, Input)
+├── theme/
+│   └── colors.ts         # THEME colors constant
+├── components/           # TUI components
+│   ├── index.ts          # Component exports
+│   ├── Banner.tsx
+│   ├── Topbar.tsx
+│   ├── StatsBarMinimal.tsx
+│   ├── StatusBar.tsx
+│   ├── PromptBox.tsx
+│   ├── MessageList.tsx
+│   ├── ThinkingIndicator.tsx
+│   ├── SplashScreen.tsx
+│   ├── FloatingImage.tsx
+│   ├── Header.tsx
+│   ├── ChatBubble.tsx
+│   ├── QuestionModal.tsx
+│   └── overlays/         # Overlay components
+│       ├── OverlayTypes.ts
+│       └── ...
 ├── hooks/                # State management hooks
+│   ├── index.ts
 │   ├── useAgent.ts       # Agent lifecycle
 │   ├── useStats.ts       # Stats aggregation
 │   ├── useLogs.ts        # Log management
-│   └── useOperations.ts  # Background operations
-└── lib/                  # Core libraries
-    ├── agent-bridge.ts   # Agent SDK wrapper
-    ├── operation-queue.ts # Background task queue
-    ├── logger.ts         # Better logger config
-    ├── file-logger.ts    # File logging with rotation
-    └── error-categorizer.ts # Error categorization
+│   ├── useOperations.ts  # Background operations
+│   └── index.ts          # Hook exports and question state
+├── lib/                  # Core libraries
+│   ├── agent-bridge.ts   # Agent SDK wrapper
+│   ├── json-logger.ts    # JSONL structured logging
+│   ├── operation-queue.ts
+│   ├── logger.ts
+│   ├── file-logger.ts
+│   └── error-categorizer.ts
+└── assets/               # Static assets
+    └── waxin.ascii.txt   # WAXIN ASCII art
 ```
+
+---
+
+## Agent Types
+
+The TUI supports three agent types (switch via Ctrl+X):
+
+| Type | Model | Permission | Max Budget | Use Case |
+|------|-------|------------|------------|----------|
+| **build** | claude-sonnet-4-5 | acceptEdits | $10.0 | Full build automation |
+| **plan** | claude-sonnet-4-5 | default | $5.0 | Planning without edits |
+| **code** | claude-sonnet-4-5 | acceptEdits | $10.0 | Code-focused tasks |
+
+Agent selection affects the options passed to `AgentBridge.execute()`.

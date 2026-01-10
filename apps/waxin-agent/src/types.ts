@@ -21,6 +21,21 @@ export interface AgentCallbacks {
   onToolCall?: (tool: string, input: unknown) => void
   onProgress?: (progress: number, message: string) => void
   onThinking?: (text: string) => void
+  onToolComplete?: (execution: ToolExecution) => void
+}
+
+/**
+ * Tool execution tracking.
+ */
+export interface ToolExecution {
+  tool: string
+  input: unknown
+  startTime: number
+  endTime?: number
+  duration?: number
+  success?: boolean
+  result?: unknown
+  error?: string
 }
 
 /**
