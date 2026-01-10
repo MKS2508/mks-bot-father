@@ -81,8 +81,8 @@ export function PromptBox({
         <box style={{ flexDirection: 'row', width: '100%' }}>
           <text style={{ fg: THEME.magenta }}>▎ </text>
           <textarea
+            key="prompt-textarea"
             ref={textareaRef}
-            initialValue=""
             placeholder='Dime algo waxin... Puedes listar tus bots, crear nuevos, o simplemente joder'
             onSubmit={onSubmit}
             keyBindings={TEXTAREA_KEYBINDINGS}
