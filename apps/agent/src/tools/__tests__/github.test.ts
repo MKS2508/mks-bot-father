@@ -34,7 +34,7 @@ interface CapturedTool {
 let capturedTools: CapturedTool[] = []
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  createSdkMcpServer: (config: { tools: CapturedTool[] }) => {
+  createSdkMcpServer: (config: { name: string; tools: CapturedTool[] }) => {
     capturedTools = config.tools
     return { name: config.name }
   },

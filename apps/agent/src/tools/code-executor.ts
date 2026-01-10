@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { readdir } from 'fs/promises'
+import { createToolLogger } from '../utils/tool-logger.js'
 
 const execAsync = promisify(exec)
 
@@ -56,7 +57,11 @@ Common uses:
           .describe('Timeout in milliseconds (default 5 min)')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.execute_command')
+        const startTime = log.start({ repoPath: args.repoPath, command: args.command.slice(0, 100) })
+
         if (!isCommandSafe(args.command)) {
+          log.error(startTime, 'Command blocked for security', { command: args.command.slice(0, 50) })
           return {
             content: [{
               type: 'text' as const,
@@ -75,6 +80,7 @@ Common uses:
             }
           )
 
+          log.success(startTime, { stdoutLength: stdout.length, stderrLength: stderr.length })
           return {
             content: [{
               type: 'text' as const,
@@ -88,6 +94,7 @@ Common uses:
           }
         } catch (error: unknown) {
           const execError = error as { message?: string; stdout?: string; stderr?: string; code?: number }
+          log.error(startTime, execError.message || String(error), { exitCode: execError.code })
           return {
             content: [{
               type: 'text' as const,
@@ -122,6 +129,9 @@ based on package.json scripts.`,
           .describe('Run in watch mode')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.run_tests')
+        const startTime = log.start({ repoPath: args.repoPath, testPattern: args.testPattern, watch: args.watch })
+
         try {
           const { stdout: pkgJson } = await execAsync(
             `cat "${args.repoPath}/package.json"`,
@@ -149,6 +159,7 @@ based on package.json scripts.`,
           const passed = (stdout.match(/pass/gi) || []).length
           const failed = (stdout.match(/fail/gi) || []).length
 
+          log.success(startTime, { passed, failed, total: passed + failed })
           return {
             content: [{
               type: 'text' as const,
@@ -166,6 +177,7 @@ based on package.json scripts.`,
           }
         } catch (error: unknown) {
           const execError = error as { message?: string; stdout?: string; stderr?: string }
+          log.error(startTime, execError.message || String(error))
           return {
             content: [{
               type: 'text' as const,
@@ -196,6 +208,9 @@ to determine the correct package manager.`,
           .describe('Package manager to use (auto-detects by default)')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.install_dependencies')
+        const startTime = log.start({ repoPath: args.repoPath, packageManager: args.packageManager })
+
         try {
           let pm = args.packageManager
 
@@ -219,6 +234,7 @@ to determine the correct package manager.`,
             { timeout: 300000 }
           )
 
+          log.success(startTime, { packageManager: pm })
           return {
             content: [{
               type: 'text' as const,
@@ -231,6 +247,7 @@ to determine the correct package manager.`,
           }
         } catch (error: unknown) {
           const execError = error as { message?: string; stderr?: string }
+          log.error(startTime, execError.message || String(error))
           return {
             content: [{
               type: 'text' as const,
@@ -252,6 +269,9 @@ Runs 'bun run build' or 'npm run build' depending on the package manager.`,
           .describe('Path to the repository')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.build_project')
+        const startTime = log.start({ repoPath: args.repoPath })
+
         try {
           const files = await readdir(args.repoPath)
           const useBun = files.includes('bun.lock') || files.includes('bun.lockb')
@@ -262,6 +282,7 @@ Runs 'bun run build' or 'npm run build' depending on the package manager.`,
             { timeout: 600000 }
           )
 
+          log.success(startTime, { useBun, outputLength: stdout.length })
           return {
             content: [{
               type: 'text' as const,
@@ -274,6 +295,7 @@ Runs 'bun run build' or 'npm run build' depending on the package manager.`,
           }
         } catch (error: unknown) {
           const execError = error as { message?: string; stdout?: string; stderr?: string }
+          log.error(startTime, execError.message || String(error))
           return {
             content: [{
               type: 'text' as const,
@@ -304,6 +326,9 @@ Optionally auto-fixes issues.`,
           .describe('Auto-fix fixable issues')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.lint_project')
+        const startTime = log.start({ repoPath: args.repoPath, fix: args.fix })
+
         try {
           const fixFlag = args.fix ? ' --fix' : ''
           const lintCmd = `bun run lint${fixFlag}`
@@ -316,6 +341,7 @@ Optionally auto-fixes issues.`,
           const errorCount = (stdout.match(/error/gi) || []).length
           const warningCount = (stdout.match(/warning/gi) || []).length
 
+          log.success(startTime, { errors: errorCount, warnings: warningCount })
           return {
             content: [{
               type: 'text' as const,
@@ -331,6 +357,7 @@ Optionally auto-fixes issues.`,
           }
         } catch (error: unknown) {
           const execError = error as { message?: string; stdout?: string }
+          log.error(startTime, execError.message || String(error))
           return {
             content: [{
               type: 'text' as const,
@@ -357,6 +384,9 @@ without generating output files.`,
           .describe('Path to the repository')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.type_check')
+        const startTime = log.start({ repoPath: args.repoPath })
+
         try {
           const checkCmd = 'bun run typecheck 2>&1 || npx tsc --noEmit 2>&1'
 
@@ -368,6 +398,7 @@ without generating output files.`,
           const output = stdout + stderr
           const errorCount = (output.match(/error TS\d+/gi) || []).length
 
+          log.success(startTime, { errorCount })
           return {
             content: [{
               type: 'text' as const,
@@ -383,6 +414,7 @@ without generating output files.`,
           const output = (execError.stdout || '') + (execError.stderr || '')
           const errorCount = (output.match(/error TS\d+/gi) || []).length
 
+          log.error(startTime, `TypeScript errors: ${errorCount}`, { errorCount })
           return {
             content: [{
               type: 'text' as const,
@@ -412,12 +444,17 @@ Returns a tree view of the project files, excluding node_modules,
           .describe('Maximum directory depth to traverse')
       },
       async (args) => {
+        const log = createToolLogger('code-executor.get_project_structure')
+        const startTime = log.start({ repoPath: args.repoPath, maxDepth: args.maxDepth })
+
         try {
           const { stdout } = await execAsync(
             `cd "${args.repoPath}" && find . -maxdepth ${args.maxDepth} -type f -o -type d | grep -v node_modules | grep -v .git | grep -v dist | sort`,
             { timeout: 30000 }
           )
 
+          const lineCount = stdout.split('\n').length
+          log.success(startTime, { lineCount })
           return {
             content: [{
               type: 'text' as const,
@@ -426,6 +463,7 @@ Returns a tree view of the project files, excluding node_modules,
           }
         } catch (error: unknown) {
           const execError = error as { message?: string }
+          log.error(startTime, execError.message || String(error))
           return {
             content: [{
               type: 'text' as const,

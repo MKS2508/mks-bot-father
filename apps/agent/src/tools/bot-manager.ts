@@ -11,6 +11,7 @@ import {
   getPipeline,
   getBotFatherService,
 } from '@mks2508/mks-bot-father'
+import { createToolLogger } from '../utils/tool-logger.js'
 
 export const botManagerServer = createSdkMcpServer({
   name: 'bot-manager',
@@ -56,6 +57,13 @@ Returns: bot token, username, and deployment URLs if applicable.`,
           .describe('Coolify destination UUID (uses default if not specified)')
       },
       async (args) => {
+        const log = createToolLogger('bot-manager.create_bot')
+        const startTime = log.start({
+          name: args.name,
+          createGithub: args.createGithub,
+          deployToCoolify: args.deployToCoolify
+        })
+
         try {
           const pipeline = getPipeline()
           const result = await pipeline.run({
@@ -71,6 +79,11 @@ Returns: bot token, username, and deployment URLs if applicable.`,
           if (isOk(result)) {
             const data = result.value
             if (data.success) {
+              log.success(startTime, {
+                botUsername: data.botUsername,
+                githubRepoUrl: data.githubRepoUrl || null,
+                coolifyAppUuid: data.coolifyAppUuid || null
+              })
               return {
                 content: [{
                   type: 'text' as const,
@@ -85,6 +98,7 @@ Returns: bot token, username, and deployment URLs if applicable.`,
                 }]
               }
             } else {
+              log.error(startTime, data.errors?.join(', ') || 'Unknown error', { phase: 'pipeline' })
               return {
                 content: [{
                   type: 'text' as const,
@@ -94,6 +108,7 @@ Returns: bot token, username, and deployment URLs if applicable.`,
               }
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'pipeline' })
             return {
               content: [{
                 type: 'text' as const,
@@ -103,6 +118,7 @@ Returns: bot token, username, and deployment URLs if applicable.`,
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,
@@ -122,11 +138,15 @@ Connects to BotFather and retrieves the complete list of bots
 with their usernames and tokens. Requires Telegram API credentials.`,
       {},
       async () => {
+        const log = createToolLogger('bot-manager.list_bots')
+        const startTime = log.start({})
+
         try {
           const botfather = getBotFatherService()
           const initResult = await botfather.init()
 
           if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
             return {
               content: [{
                 type: 'text' as const,
@@ -141,6 +161,8 @@ with their usernames and tokens. Requires Telegram API credentials.`,
 
           if (isOk(result)) {
             const bots = result.value
+            log.success(startTime, { botCount: bots.length })
+
             if (bots.length === 0) {
               return {
                 content: [{
@@ -161,6 +183,7 @@ with their usernames and tokens. Requires Telegram API credentials.`,
               }]
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'getAllBots' })
             return {
               content: [{
                 type: 'text' as const,
@@ -170,6 +193,7 @@ with their usernames and tokens. Requires Telegram API credentials.`,
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,
@@ -208,6 +232,14 @@ Can update:
           .describe('About text (max 120 chars)')
       },
       async (args) => {
+        const log = createToolLogger('bot-manager.configure_bot')
+        const startTime = log.start({
+          botUsername: args.botUsername,
+          hasCommands: !!(args.commands && args.commands.length > 0),
+          hasDescription: !!args.description,
+          hasAboutText: !!args.aboutText
+        })
+
         try {
           const botfather = getBotFatherService()
           await botfather.init()
@@ -249,6 +281,12 @@ Can update:
             errors.length > 0 ? `Errors:\n${errors.map(e => `  - ${e}`).join('\n')}` : ''
           ].filter(Boolean).join('\n\n')
 
+          if (errors.length > 0 && results.length === 0) {
+            log.error(startTime, errors.join(', '), { results, errors })
+          } else {
+            log.success(startTime, { resultsCount: results.length, errorsCount: errors.length })
+          }
+
           return {
             content: [{
               type: 'text' as const,
@@ -257,6 +295,7 @@ Can update:
             isError: errors.length > 0 && results.length === 0
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,
@@ -278,11 +317,15 @@ variables or other systems.`,
         botUsername: z.string().describe('Bot username (with or without @)')
       },
       async (args) => {
+        const log = createToolLogger('bot-manager.get_bot_token')
+        const startTime = log.start({ botUsername: args.botUsername })
+
         try {
           const botfather = getBotFatherService()
           const initResult = await botfather.init()
 
           if (isErr(initResult)) {
+            log.error(startTime, initResult.error.message, { phase: 'init' })
             return {
               content: [{
                 type: 'text' as const,
@@ -300,6 +343,7 @@ variables or other systems.`,
             const bot = result.value.find(b => b.username === username)
 
             if (bot) {
+              log.success(startTime, { found: true })
               return {
                 content: [{
                   type: 'text' as const,
@@ -308,6 +352,7 @@ variables or other systems.`,
               }
             }
 
+            log.error(startTime, 'Bot not found', { botUsername: username, availableBots: result.value.length })
             return {
               content: [{
                 type: 'text' as const,
@@ -316,6 +361,7 @@ variables or other systems.`,
               isError: true
             }
           } else {
+            log.error(startTime, result.error.message, { phase: 'getAllBots' })
             return {
               content: [{
                 type: 'text' as const,
@@ -325,6 +371,7 @@ variables or other systems.`,
             }
           }
         } catch (error) {
+          log.error(startTime, error, { phase: 'exception' })
           return {
             content: [{
               type: 'text' as const,

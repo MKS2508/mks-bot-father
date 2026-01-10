@@ -9,7 +9,7 @@ import { mcpServers, allAllowedTools } from './tools/index.js'
 import { subagents } from './subagents/index.js'
 import { SYSTEM_PROMPT } from './prompts/system.js'
 import { logger } from './utils/logger.js'
-import type { AgentOptions, AgentResult, ToolCallLog } from './types.js'
+import type { AgentOptions, AgentResult, ToolCallLog, PermissionDenial, ProgressEvent } from './types.js'
 
 interface ContentBlock {
   type: string
@@ -27,15 +27,19 @@ export async function runAgent(
     workingDirectory = process.cwd(),
     maxTurns = 50,
     model = 'claude-sonnet-4-5',
+    maxBudgetUsd = 10.0,
     permissionMode = 'acceptEdits',
     includePartial = false,
     onMessage,
-    resumeSession
+    onProgress,
+    resumeSession,
+    additionalDirectories
   } = options
 
   let sessionId = ''
   const toolCalls: ToolCallLog[] = []
   const errors: string[] = []
+  const permissionDenials: PermissionDenial[] = []
   let finalResult: string | null = null
   let usage = { inputTokens: 0, outputTokens: 0, totalCostUsd: 0 }
   const startTime = Date.now()
@@ -48,12 +52,14 @@ export async function runAgent(
       model,
       cwd: workingDirectory,
       maxTurns,
+      maxBudgetUsd,
       permissionMode,
       includePartialMessages: includePartial,
       mcpServers,
       agents: subagents,
       allowedTools: allAllowedTools,
-      ...(resumeSession && { resume: resumeSession })
+      ...(resumeSession && { resume: resumeSession }),
+      ...(additionalDirectories && { additionalDirectories })
     }
 
     for await (const message of query({
@@ -73,6 +79,7 @@ export async function runAgent(
         errors?: string[]
         usage?: { input_tokens?: number; output_tokens?: number }
         total_cost_usd?: number
+        permission_denials?: Array<{ tool: string; reason: string }>
       }
 
       switch (msg.type) {
@@ -95,6 +102,26 @@ export async function runAgent(
                   input: block.input,
                   result: ''
                 })
+              } else if (block.type === 'tool_result' && block.content) {
+                // Extract progress events from tool results
+                try {
+                  const content = typeof block.content === 'string'
+                    ? block.content
+                    : JSON.stringify(block.content)
+
+                  const parsed = JSON.parse(content) as {
+                    progress?: Array<{ pct: number; msg: string; step?: string }>
+                    [key: string]: unknown
+                  }
+
+                  if (parsed.progress && Array.isArray(parsed.progress) && onProgress) {
+                    for (const event of parsed.progress) {
+                      onProgress(event)
+                    }
+                  }
+                } catch {
+                  // Not valid JSON or doesn't contain progress, skip
+                }
               }
             }
           }
@@ -108,6 +135,14 @@ export async function runAgent(
             inputTokens: msg.usage?.input_tokens || 0,
             outputTokens: msg.usage?.output_tokens || 0,
             totalCostUsd: msg.total_cost_usd || 0
+          }
+
+          // Check permission denials
+          if (msg.permission_denials && msg.permission_denials.length > 0) {
+            for (const denial of msg.permission_denials) {
+              permissionDenials.push({ tool: denial.tool, reason: denial.reason })
+              logger.warn(`Permission denied for ${denial.tool}: ${denial.reason}`)
+            }
           }
 
           if (msg.subtype === 'success') {
@@ -146,6 +181,7 @@ export async function runAgent(
     sessionId,
     toolCalls,
     errors,
+    permissionDenials,
     usage,
     durationMs
   }

@@ -13,6 +13,12 @@ const mockCoolifyStopApplication = vi.fn()
 const mockCoolifyRestartApplication = vi.fn()
 const mockCoolifyGetDeploymentHistory = vi.fn()
 const mockCoolifyUpdateApplication = vi.fn()
+const mockCoolifyListServers = vi.fn()
+const mockCoolifyGetServer = vi.fn()
+const mockCoolifyGetServerDestinations = vi.fn()
+const mockCoolifyCreateApplication = vi.fn()
+const mockCoolifyListProjects = vi.fn()
+const mockCoolifyListTeams = vi.fn()
 
 vi.mock('@mks2508/mks-bot-father', () => ({
   getCoolifyService: () => ({
@@ -28,6 +34,12 @@ vi.mock('@mks2508/mks-bot-father', () => ({
     restartApplication: mockCoolifyRestartApplication,
     getApplicationDeploymentHistory: mockCoolifyGetDeploymentHistory,
     updateApplication: mockCoolifyUpdateApplication,
+    listServers: mockCoolifyListServers,
+    getServer: mockCoolifyGetServer,
+    getServerDestinations: mockCoolifyGetServerDestinations,
+    createApplication: mockCoolifyCreateApplication,
+    listProjects: mockCoolifyListProjects,
+    listTeams: mockCoolifyListTeams,
   }),
 }))
 
@@ -649,6 +661,518 @@ describe('Coolify Tools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Failed to update application')
+    })
+  })
+
+  describe('list_servers tool', () => {
+    it('should list servers successfully', async () => {
+      mockCoolifyListServers.mockResolvedValue(
+        ok([
+          { uuid: 'server-1', name: 'localhost' },
+          { uuid: 'server-2', name: 'production' },
+        ])
+      )
+
+      const tool = getTool('list_servers')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.count).toBe(2)
+      expect(parsed.servers).toHaveLength(2)
+      expect(parsed.servers[0].name).toBe('localhost')
+    })
+
+    it('should handle empty server list', async () => {
+      mockCoolifyListServers.mockResolvedValue(ok([]))
+
+      const tool = getTool('list_servers')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.count).toBe(0)
+      expect(parsed.servers).toHaveLength(0)
+    })
+
+    it('should handle list servers failure', async () => {
+      mockCoolifyListServers.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Unauthorized' })
+      )
+
+      const tool = getTool('list_servers')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to list servers')
+      expect(result.content[0].text).toContain('Unauthorized')
+    })
+
+    it('should handle unexpected errors', async () => {
+      mockCoolifyListServers.mockRejectedValue(new Error('Network error'))
+
+      const tool = getTool('list_servers')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Network error')
+    })
+
+    it('should handle init failure', async () => {
+      mockCoolifyInit.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'No token configured' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('list_servers')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Coolify not configured')
+    })
+  })
+
+  describe('get_server_destinations tool', () => {
+    it('should get server destinations successfully', async () => {
+      mockCoolifyGetServerDestinations.mockResolvedValue(
+        ok([
+          { uuid: 'dest-1', name: 'coolify-network' },
+          { uuid: 'dest-2', name: 'bridge' },
+        ])
+      )
+
+      const tool = getTool('get_server_destinations')
+      const result = await tool!.handler({ serverUuid: 'server-uuid-123' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.serverUuid).toBe('server-uuid-123')
+      expect(parsed.count).toBe(2)
+      expect(parsed.destinations).toHaveLength(2)
+    })
+
+    it('should call service with correct server UUID', async () => {
+      mockCoolifyGetServerDestinations.mockResolvedValue(ok([]))
+
+      const tool = getTool('get_server_destinations')
+      await tool!.handler({ serverUuid: 'my-server-uuid' })
+
+      expect(mockCoolifyGetServerDestinations).toHaveBeenCalledWith('my-server-uuid')
+    })
+
+    it('should handle empty destinations', async () => {
+      mockCoolifyGetServerDestinations.mockResolvedValue(ok([]))
+
+      const tool = getTool('get_server_destinations')
+      const result = await tool!.handler({ serverUuid: 'server-uuid' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.count).toBe(0)
+    })
+
+    it('should handle get destinations failure', async () => {
+      mockCoolifyGetServerDestinations.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Server not found' })
+      )
+
+      const tool = getTool('get_server_destinations')
+      const result = await tool!.handler({ serverUuid: 'invalid-server' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to get destinations')
+      expect(result.content[0].text).toContain('Server not found')
+    })
+
+    it('should handle unexpected errors', async () => {
+      mockCoolifyGetServerDestinations.mockRejectedValue(new Error('Connection timeout'))
+
+      const tool = getTool('get_server_destinations')
+      const result = await tool!.handler({ serverUuid: 'server-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Connection timeout')
+    })
+  })
+
+  describe('create_application tool', () => {
+    it('should create application successfully', async () => {
+      mockCoolifyCreateApplication.mockResolvedValue(
+        ok({ success: true, uuid: 'new-app-uuid-123' })
+      )
+
+      const tool = getTool('create_application')
+      const result = await tool!.handler({
+        name: 'my-new-app',
+        serverUuid: 'server-uuid',
+        destinationUuid: 'dest-uuid',
+        githubRepoUrl: 'https://github.com/user/repo',
+      })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.uuid).toBe('new-app-uuid-123')
+      expect(parsed.message).toContain('my-new-app')
+      expect(parsed.nextSteps).toBeDefined()
+      expect(parsed.nextSteps).toContain('Use set_env_vars to configure environment variables')
+    })
+
+    it('should pass all parameters to service', async () => {
+      mockCoolifyCreateApplication.mockResolvedValue(ok({ success: true, uuid: 'app-uuid' }))
+
+      const tool = getTool('create_application')
+      await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'srv-123',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/org/repo',
+        description: 'Test application',
+        branch: 'develop',
+        buildPack: 'dockerfile',
+      })
+
+      expect(mockCoolifyCreateApplication).toHaveBeenCalledWith({
+        name: 'test-app',
+        description: 'Test application',
+        serverUuid: 'srv-123',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/org/repo',
+        branch: 'develop',
+        buildPack: 'dockerfile',
+      })
+    })
+
+    it('should use default branch and buildPack', async () => {
+      mockCoolifyCreateApplication.mockResolvedValue(ok({ success: true, uuid: 'app-uuid' }))
+
+      const tool = getTool('create_application')
+      await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'srv-123',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/org/repo',
+      })
+
+      expect(mockCoolifyCreateApplication).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branch: 'main',
+          buildPack: 'nixpacks',
+        })
+      )
+    })
+
+    it('should handle create application failure', async () => {
+      mockCoolifyCreateApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Repository not accessible' })
+      )
+
+      const tool = getTool('create_application')
+      const result = await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'srv-123',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/private/repo',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to create application')
+      expect(result.content[0].text).toContain('Repository not accessible')
+    })
+
+    it('should handle invalid server UUID', async () => {
+      mockCoolifyCreateApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Invalid server UUID' })
+      )
+
+      const tool = getTool('create_application')
+      const result = await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'invalid',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/user/repo',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to create application')
+    })
+
+    it('should handle invalid destination UUID', async () => {
+      mockCoolifyCreateApplication.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Destination not found' })
+      )
+
+      const tool = getTool('create_application')
+      const result = await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'srv-123',
+        destinationUuid: 'invalid-dest',
+        githubRepoUrl: 'https://github.com/user/repo',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to create application')
+      expect(result.content[0].text).toContain('Destination not found')
+    })
+
+    it('should handle unexpected errors', async () => {
+      mockCoolifyCreateApplication.mockRejectedValue(new Error('API timeout'))
+
+      const tool = getTool('create_application')
+      const result = await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'srv-123',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/user/repo',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('API timeout')
+    })
+
+    it('should handle init failure', async () => {
+      mockCoolifyInit.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'No Coolify URL configured' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('create_application')
+      const result = await tool!.handler({
+        name: 'test-app',
+        serverUuid: 'srv-123',
+        destinationUuid: 'dest-456',
+        githubRepoUrl: 'https://github.com/user/repo',
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Coolify not configured')
+    })
+  })
+
+  describe('get_server tool', () => {
+    it('should get server details successfully', async () => {
+      mockCoolifyGetServer.mockResolvedValue(
+        ok({
+          uuid: 'server-uuid-123',
+          name: 'Production Server',
+          ip: '192.168.1.100',
+        })
+      )
+
+      const tool = getTool('get_server')
+      const result = await tool!.handler({ serverUuid: 'server-uuid-123' })
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.server.uuid).toBe('server-uuid-123')
+      expect(parsed.server.name).toBe('Production Server')
+    })
+
+    it('should call service with correct UUID', async () => {
+      mockCoolifyGetServer.mockResolvedValue(ok({ uuid: 'srv-123', name: 'Test' }))
+
+      const tool = getTool('get_server')
+      await tool!.handler({ serverUuid: 'srv-123' })
+
+      expect(mockCoolifyGetServer).toHaveBeenCalledWith('srv-123')
+    })
+
+    it('should handle server not found error', async () => {
+      mockCoolifyGetServer.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Server not found' })
+      )
+
+      const tool = getTool('get_server')
+      const result = await tool!.handler({ serverUuid: 'nonexistent' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to get server')
+      expect(result.content[0].text).toContain('Server not found')
+    })
+
+    it('should handle unexpected errors', async () => {
+      mockCoolifyGetServer.mockRejectedValue(new Error('Connection refused'))
+
+      const tool = getTool('get_server')
+      const result = await tool!.handler({ serverUuid: 'server-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Connection refused')
+    })
+
+    it('should handle init failure', async () => {
+      mockCoolifyInit.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'No token configured' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('get_server')
+      const result = await tool!.handler({ serverUuid: 'server-uuid' })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Coolify not configured')
+    })
+  })
+
+  describe('list_projects tool', () => {
+    it('should list projects successfully', async () => {
+      mockCoolifyListProjects.mockResolvedValue(
+        ok([
+          { uuid: 'proj-1', name: 'Project 1' },
+          { uuid: 'proj-2', name: 'Project 2' },
+        ])
+      )
+
+      const tool = getTool('list_projects')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.count).toBe(2)
+      expect(parsed.projects).toHaveLength(2)
+      expect(parsed.projects[0].name).toBe('Project 1')
+    })
+
+    it('should handle empty project list', async () => {
+      mockCoolifyListProjects.mockResolvedValue(ok([]))
+
+      const tool = getTool('list_projects')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.count).toBe(0)
+      expect(parsed.projects).toHaveLength(0)
+    })
+
+    it('should handle list projects failure', async () => {
+      mockCoolifyListProjects.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Unauthorized' })
+      )
+
+      const tool = getTool('list_projects')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to list projects')
+      expect(result.content[0].text).toContain('Unauthorized')
+    })
+
+    it('should handle unexpected errors', async () => {
+      mockCoolifyListProjects.mockRejectedValue(new Error('Network error'))
+
+      const tool = getTool('list_projects')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Network error')
+    })
+
+    it('should handle init failure', async () => {
+      mockCoolifyInit.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'No token configured' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('list_projects')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Coolify not configured')
+    })
+  })
+
+  describe('list_teams tool', () => {
+    it('should list teams successfully', async () => {
+      mockCoolifyListTeams.mockResolvedValue(
+        ok([
+          { id: 1, name: 'Team Alpha' },
+          { id: 2, name: 'Team Beta' },
+        ])
+      )
+
+      const tool = getTool('list_teams')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.success).toBe(true)
+      expect(parsed.count).toBe(2)
+      expect(parsed.teams).toHaveLength(2)
+      expect(parsed.teams[0].name).toBe('Team Alpha')
+    })
+
+    it('should handle empty team list', async () => {
+      mockCoolifyListTeams.mockResolvedValue(ok([]))
+
+      const tool = getTool('list_teams')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBeFalsy()
+      const parsed = JSON.parse(result.content[0].text)
+      expect(parsed.count).toBe(0)
+      expect(parsed.teams).toHaveLength(0)
+    })
+
+    it('should handle list teams failure', async () => {
+      mockCoolifyListTeams.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'Unauthorized' })
+      )
+
+      const tool = getTool('list_teams')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Failed to list teams')
+      expect(result.content[0].text).toContain('Unauthorized')
+    })
+
+    it('should handle unexpected errors', async () => {
+      mockCoolifyListTeams.mockRejectedValue(new Error('Network error'))
+
+      const tool = getTool('list_teams')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Error')
+      expect(result.content[0].text).toContain('Network error')
+    })
+
+    it('should handle init failure', async () => {
+      mockCoolifyInit.mockResolvedValue(
+        err({ code: 'COOLIFY_ERROR', message: 'No token configured' })
+      )
+
+      vi.resetModules()
+      capturedTools = []
+      await import('../coolify.js')
+
+      const tool = getTool('list_teams')
+      const result = await tool!.handler({})
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Coolify not configured')
     })
   })
 })

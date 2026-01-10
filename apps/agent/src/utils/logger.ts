@@ -1,59 +1,94 @@
 /**
  * Logger utility for the Bot Manager Agent.
+ *
+ * Provides console output with colors + JSON file logging using @mks2508/shared-logger.
  */
 
-import chalk from 'chalk'
+import { JsonLogger, consoleTransport, fileTransport, cliPreset, type LogMetrics } from '@mks2508/shared-logger'
 
-const PREFIXES = {
-  info: chalk.blue('ℹ'),
-  success: chalk.green('✓'),
-  warn: chalk.yellow('⚠'),
-  error: chalk.red('✗'),
-  debug: chalk.gray('●'),
-  assistant: chalk.cyan('🤖'),
-  tool: chalk.magenta('🔧'),
-  toolResult: chalk.green('📤')
-}
+const logger = new JsonLogger(cliPreset({
+  logDir: '~/.config/mks-bot-father/logs',
+  level: process.env.DEBUG ? 'DBG' : 'INF'
+}))
 
-function formatTimestamp(): string {
-  return chalk.gray(`[${new Date().toISOString().slice(11, 19)}]`)
-}
+export { logger }
 
-export const logger = {
-  info(message: string, ...args: unknown[]) {
-    console.log(`${formatTimestamp()} ${PREFIXES.info} ${message}`, ...args)
+// Convenience exports for backward compatibility
+export const log = {
+  info(message: string, data?: Record<string, unknown>) {
+    logger.info('AGENT', message, data)
   },
 
-  success(message: string, ...args: unknown[]) {
-    console.log(`${formatTimestamp()} ${PREFIXES.success} ${chalk.green(message)}`, ...args)
+  success(message: string, data?: Record<string, unknown>) {
+    logger.info('AGENT', message, data)
   },
 
-  warn(message: string, ...args: unknown[]) {
-    console.log(`${formatTimestamp()} ${PREFIXES.warn} ${chalk.yellow(message)}`, ...args)
+  warn(message: string, data?: Record<string, unknown>) {
+    logger.warn('AGENT', message, data)
   },
 
-  error(message: string, ...args: unknown[]) {
-    console.error(`${formatTimestamp()} ${PREFIXES.error} ${chalk.red(message)}`, ...args)
+  error(message: string, data?: Record<string, unknown>) {
+    logger.error('AGENT', message, data)
   },
 
-  debug(message: string, ...args: unknown[]) {
-    if (process.env.DEBUG) {
-      console.log(`${formatTimestamp()} ${PREFIXES.debug} ${chalk.gray(message)}`, ...args)
-    }
+  debug(message: string, data?: Record<string, unknown>) {
+    logger.debug('AGENT', message, data)
   },
 
   assistant(message: string) {
-    console.log(`${formatTimestamp()} ${PREFIXES.assistant} ${message}`)
+    logger.info('AGENT', 'assistant_response', { preview: message.slice(0, 200) })
   },
 
-  tool(message: string) {
-    console.log(`${formatTimestamp()} ${PREFIXES.tool} ${chalk.magenta(message)}`)
+  tool(name: string, input?: unknown) {
+    logger.tool(name, { hasInput: !!input } })
   },
 
-  toolResult(tool: string, result: unknown) {
+  toolResult(tool: string, result: unknown, success = true, durationMs?: number) {
     const preview = typeof result === 'string'
       ? result.slice(0, 100)
       : JSON.stringify(result).slice(0, 100)
-    console.log(`${formatTimestamp()} ${PREFIXES.toolResult} ${chalk.green(tool)}: ${chalk.gray(preview)}...`)
+
+    logger.logWithMetrics(
+      'AGENT',
+      'tool_result',
+      { duration_ms: durationMs },
+      {
+        tool,
+        success,
+        preview: preview.slice(0, 100)
+      }
+    )
   }
+}
+
+/**
+ * Log agent event with optional metrics
+ */
+export function logAgentEvent(
+  level: 'INF' | 'ERR' | 'WRN' | 'DBG',
+  msg: string,
+  data?: Record<string, unknown>,
+  metrics?: LogMetrics
+): void {
+  logger.log({
+    level,
+    src: 'AGENT',
+    msg,
+    data: metrics ? { ...data, ...metrics } : data
+  })
+}
+
+/**
+ * Log execution complete with metrics
+ */
+export function logExecutionComplete(metrics: {
+  prompt: string
+  durationMs: number
+  inputTokens: number
+  outputTokens: number
+  costUsd: number
+  toolCalls: number
+  success: boolean
+}): void {
+  logger.executionComplete(metrics)
 }

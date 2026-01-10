@@ -76,11 +76,21 @@ export async function executePrompt(
     timestamp: new Date().toISOString()
   })
 
+  // Load conversation context and previous session
+  const recentContext = await memoryStore.getRecentContext(userId, 10)
+  const lastSessionId = await memoryStore.getUserLastSessionId(userId)
+
+  // Build enriched prompt with conversation history
+  const enrichedPrompt = recentContext
+    ? `## Conversación previa:\n${recentContext}\n\n## Nueva solicitud:\n${prompt}`
+    : prompt
+
   let lastUpdateTime = Date.now()
 
   try {
-    const result = await runAgent(prompt, {
+    const result = await runAgent(enrichedPrompt, {
       maxTurns: 30,
+      resumeSession: lastSessionId || undefined,
       onMessage: async (msg) => {
         const typedMsg = msg as { type: string; tool_name?: string }
 
@@ -144,6 +154,11 @@ export async function executePrompt(
         content: result.result,
         timestamp: new Date().toISOString()
       })
+
+      // Save session for continuity
+      if (result.sessionId) {
+        await memoryStore.saveUserSession(userId, result.sessionId)
+      }
 
       // Check if bot was created - show quick actions
       const promptLower = prompt.toLowerCase()

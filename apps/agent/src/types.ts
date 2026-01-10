@@ -22,12 +22,24 @@ export interface AgentUsage {
   totalCostUsd: number
 }
 
+export interface PermissionDenial {
+  tool: string
+  reason: string
+}
+
+export interface ProgressEvent {
+  pct: number
+  msg: string
+  step?: string
+}
+
 export interface AgentResult {
   success: boolean
   result: string | null
   sessionId: string
   toolCalls: ToolCallLog[]
   errors: string[]
+  permissionDenials: PermissionDenial[]
   usage: AgentUsage
   durationMs: number
 }
@@ -36,10 +48,13 @@ export interface AgentOptions {
   workingDirectory?: string
   maxTurns?: number
   model?: string
+  maxBudgetUsd?: number
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
   includePartial?: boolean
   onMessage?: (message: unknown) => void
+  onProgress?: (event: ProgressEvent) => void
   resumeSession?: string
+  additionalDirectories?: string[]
 }
 
 export interface Message {

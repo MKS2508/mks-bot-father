@@ -46,6 +46,8 @@ Supports both personal repos and organization repos.`,
           .describe('Template repo name')
       },
       async (args) => {
+        const progressEvents: Array<{ pct: number; msg: string; step?: string }> = []
+
         try {
           const github = getGitHubService()
           const initResult = await github.init()
@@ -67,6 +69,8 @@ Supports both personal repos and organization repos.`,
             owner: args.org,
             templateOwner: args.templateOwner,
             templateRepo: args.templateRepo
+          }, (pct, msg, step) => {
+            progressEvents.push({ pct, msg, step })
           })
 
           if (isOk(result)) {
@@ -76,7 +80,8 @@ Supports both personal repos and organization repos.`,
                 text: JSON.stringify({
                   success: true,
                   repoUrl: result.value.repoUrl,
-                  cloneUrl: result.value.cloneUrl
+                  cloneUrl: result.value.cloneUrl,
+                  progress: progressEvents
                 }, null, 2)
               }]
             }
@@ -289,6 +294,180 @@ Returns repo details, default branch, open issues/PRs count, etc.`,
             content: [{
               type: 'text' as const,
               text: `Failed to get repo info: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true
+          }
+        }
+      }
+    ),
+
+    tool(
+      'get_authenticated_user',
+      `Get the currently authenticated GitHub username.
+
+Useful for determining the default repository owner before creating repos.`,
+      {
+        empty: z.object({}).describe('No parameters required')
+      },
+      async (args) => {
+        try {
+          const github = getGitHubService()
+          const initResult = await github.init()
+
+          if (isErr(initResult)) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `GitHub init failed: ${initResult.error.message}`
+              }],
+              isError: true
+            }
+          }
+
+          const result = await github.getAuthenticatedUser()
+
+          if (isOk(result)) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  success: true,
+                  username: result.value
+                }, null, 2)
+              }]
+            }
+          } else {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to get authenticated user: ${result.error.message}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true
+          }
+        }
+      }
+    ),
+
+    tool(
+      'is_organization',
+      `Check if a GitHub account name is an organization.
+
+Returns true if the name belongs to an organization, false if it's a personal account.`,
+      {
+        name: z.string()
+          .describe('Account name to check')
+      },
+      async (args) => {
+        try {
+          const github = getGitHubService()
+          const initResult = await github.init()
+
+          if (isErr(initResult)) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `GitHub init failed: ${initResult.error.message}`
+              }],
+              isError: true
+            }
+          }
+
+          const result = await github.isOrganization(args.name)
+
+          if (isOk(result)) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  success: true,
+                  name: args.name,
+                  isOrganization: result.value
+                }, null, 2)
+              }]
+            }
+          } else {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to check organization: ${result.error.message}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true
+          }
+        }
+      }
+    ),
+
+    tool(
+      'repo_exists',
+      `Check if a GitHub repository exists.
+
+Useful for validating before creating or cloning repositories.`,
+      {
+        owner: z.string()
+          .describe('Repository owner'),
+        repo: z.string()
+          .describe('Repository name')
+      },
+      async (args) => {
+        try {
+          const github = getGitHubService()
+          const initResult = await github.init()
+
+          if (isErr(initResult)) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `GitHub init failed: ${initResult.error.message}`
+              }],
+              isError: true
+            }
+          }
+
+          const result = await github.repoExists(args.owner, args.repo)
+
+          if (isOk(result)) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  success: true,
+                  repo: `${args.owner}/${args.repo}`,
+                  exists: result.value
+                }, null, 2)
+              }]
+            }
+          } else {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Failed to check repo existence: ${result.error.message}`
+              }],
+              isError: true
+            }
+          }
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : String(error)}`
             }],
             isError: true
           }

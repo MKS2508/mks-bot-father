@@ -116,5 +116,32 @@ export const memoryStore = {
       firstMessage: messages[0]?.timestamp || null,
       lastMessage: messages[messages.length - 1]?.timestamp || null
     }
+  },
+
+  async saveUserSession(userId: string, sessionId: string): Promise<void> {
+    await mkdir(USERS_DIR, { recursive: true })
+    const filePath = join(USERS_DIR, `${userId}_session.json`)
+    await writeFile(
+      filePath,
+      JSON.stringify({ sessionId, savedAt: new Date().toISOString() })
+    )
+  },
+
+  async getUserLastSessionId(userId: string): Promise<string | null> {
+    try {
+      const filePath = join(USERS_DIR, `${userId}_session.json`)
+      const content = await readFile(filePath, 'utf-8')
+      const data = JSON.parse(content) as { sessionId?: string }
+      return data.sessionId || null
+    } catch {
+      return null
+    }
+  },
+
+  async clearUserSession(userId: string): Promise<void> {
+    const filePath = join(USERS_DIR, `${userId}_session.json`)
+    if (existsSync(filePath)) {
+      await unlink(filePath)
+    }
   }
 }

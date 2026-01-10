@@ -5,25 +5,31 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./cli": "./src/cli.ts"
+    "./cli": "./src/cli.ts",
+    "./memory/*": "./src/memory/*.ts",
+    "./utils/*": "./src/utils/*.ts"
   },
   "scripts": {
     "dev": "bun --watch src/cli.ts",
     "start": "bun src/cli.ts",
-    "start:telegram": "bun src/telegram/bot.ts",
+    "start:telegram": "bun --filter @mks2508/telegram-bot start",
     "build": "bun build ./src/cli.ts --outfile ./dist/agent.js --target node",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "typecheck": "tsc --noEmit",
+    "debug:coolify": "bun run src/debug/coolify-debug.ts",
+    "debug:github": "bun run src/debug/github-debug.ts",
+    "debug:all": "bun run debug:coolify && bun run debug:github"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.1",
     "@mks2508/mks-bot-father": "workspace:*",
+    "@mks2508/shared-logger": "workspace:*",
     "@mks2508/better-logger": "^4.0.0",
-    "@mks2508/no-throw": "^0.1.0",
     "zod": "^3.24.1",
-    "telegraf": "^4.16.0",
     "chalk": "^5.4.1",
     "ora": "^8.0.0",
     "dotenv": "^16.4.7"
@@ -31,6 +37,7 @@
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/ui": "4.0.16",
     "typescript": "^5.9.0",
     "vitest": "^4.0.16"
   }
