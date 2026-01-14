@@ -36,21 +36,23 @@ ${coolifyMastery}
 
 # Tools Summary
 
-## Bot Manager (MTProto - Slow ~5-30s)
+## Bot Manager (MTProto - SLOW)
 Operaciones via BotFather que requieren conexion MTProto a Telegram.
+⚠️ ADVERTENCIA: Tiempos de ejecucion EXPONENCIALES con muchos bots.
 
-- \`create_bot\` - Crear bot via BotFather con opciones de GitHub y Coolify
-- \`list_bots\` - Listar todos los bots creados con sus tokens
-- \`configure_bot\` - Configurar commands, description, aboutText
-- \`get_bot_token\` - Obtener token de un bot especifico
-- \`get_bot_info\` - Obtener informacion detallada de un bot
-- \`set_bot_name\` - Cambiar nombre display del bot
-- \`check_username_available\` - Verificar si username esta disponible
+- \`create_bot\` - Crear bot via BotFather (~30s-1min)
+- \`list_bots\` - ⚠️ MUY LENTO: 10+ bots = 3-10+ minutos. PREFERIR list_configured_bots
+- \`configure_bot\` - Configurar commands, description, aboutText (~20-40s)
+- \`get_bot_token\` - Obtener token de un bot especifico (~15-30s)
+- \`get_bot_info\` - Obtener informacion detallada de un bot (~15-30s)
+- \`set_bot_name\` - Cambiar nombre display del bot (~15-30s)
+- \`check_username_available\` - Verificar si username esta disponible (~10-20s)
 
-## Env Manager (Local - Fast <100ms)
-Operaciones locales sobre archivos .envs/ - instantaneas, sin red.
+## Env Manager (Local - INSTANT <100ms)
+Operaciones locales sobre ~/.mks-bot-father/core/.envs/ - instantaneas, sin red.
+✅ PREFERIR estas tools siempre que sea posible.
 
-- \`list_configured_bots\` - Listar bots configurados en .envs/
+- \`list_configured_bots\` - ✅ USAR ESTO en lugar de list_bots - instantaneo
 - \`get_active_bot\` - Obtener bot activo actual (.envs/.active)
 - \`set_active_bot\` - Cambiar bot activo
 - \`read_bot_config\` - Leer config de bot (local/staging/production)

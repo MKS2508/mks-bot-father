@@ -140,8 +140,15 @@ Returns: bot token, username, and deployment URLs if applicable.`,
       'list_bots',
       `List all Telegram bots created via BotFather.
 
-Connects to BotFather and retrieves the complete list of bots
-with their usernames and tokens. Requires Telegram API credentials.`,
+⚠️ WARNING: This operation is VERY SLOW with many bots (exponential time).
+- 1-5 bots: ~30 seconds
+- 5-10 bots: ~1-2 minutes
+- 10+ bots: ~3-10+ minutes (current account has 10+ bots)
+
+PREFER using 'list_configured_bots' (env-manager) for instant local results.
+Only use this tool when you need to sync with BotFather or get tokens for bots not yet configured locally.
+
+Connects to BotFather via MTProto and retrieves all bots with their tokens.`,
       {},
       async () => {
         const log = createToolLogger('bot-manager.list_bots')

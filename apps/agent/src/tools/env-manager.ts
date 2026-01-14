@@ -35,10 +35,13 @@ export const envManagerServer = createSdkMcpServer({
   tools: [
     tool(
       'list_configured_bots',
-      `List all bots configured in local .envs/ directory.
+      `List all bots configured locally - INSTANT (<100ms).
 
-This is a FAST local operation that reads the filesystem.
-Returns all bots with their environments and active status.`,
+✅ PREFERRED over bot-manager's list_bots which takes 3-10+ minutes with many bots.
+
+Reads from ~/.mks-bot-father/core/.envs/ (or MKS_CORE_DIR env var).
+Returns all bots with their environments, active status, and metadata.
+No network calls - pure filesystem operation.`,
       {},
       async () => {
         const log = createToolLogger('env-manager.list_configured_bots')
