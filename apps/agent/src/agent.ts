@@ -9,7 +9,7 @@ import { mcpServers, allAllowedTools } from './tools/index.js'
 import { subagents } from './subagents/index.js'
 import { SYSTEM_PROMPT } from './prompts/system.js'
 import { logger } from './utils/logger.js'
-import type { AgentOptions, AgentResult, ToolCallLog, PermissionDenial } from './types.js'
+import type { AgentOptions, AgentResult, ToolCallLog, PermissionDenial, ExecutionContext } from './types.js'
 
 interface ContentBlock {
   type: string
@@ -18,6 +18,75 @@ interface ContentBlock {
   input?: unknown
   id?: string
   content?: string | unknown
+}
+
+function buildExecutionContextPrompt(context?: ExecutionContext): string {
+  if (!context) {
+    return ''
+  }
+
+  const sections: string[] = ['# Execution Context']
+
+  switch (context.environment) {
+    case 'telegram':
+      sections.push(`
+## Environment: Telegram Bot
+You are being executed from a Telegram bot interface.
+
+### Communication Guidelines:
+- Use the \`mcp__telegram-messenger__*\` tools to send formatted messages to the user
+- Use \`send_message\` for regular responses with proper HTML formatting
+- Use \`ask_user_question\` when you need user input (creates inline keyboard buttons)
+- Use \`update_progress\` for long-running operations to show visual progress
+- Keep messages concise - Telegram has message length limits
+- Use sections, code blocks, and formatting for clarity
+
+### Available Telegram Tools:
+- \`build_message\` - Build formatted messages with sections, lines, code blocks
+- \`build_keyboard\` - Build inline keyboards with callback/url buttons
+- \`send_message\` - Send message to the user
+- \`send_media\` - Send photos, videos, documents
+- \`edit_message\` - Edit an existing message
+- \`delete_message\` - Delete a message
+- \`ask_user_question\` - Ask user a question with button options (waits for response)
+- \`update_progress\` - Show/update progress indicator
+- \`format_tool_result\` - Format tool results for display`)
+
+      if (context.telegram) {
+        sections.push(`
+### Current Chat Context:
+- Chat ID: ${context.telegram.chatId}
+- User ID: ${context.telegram.userId}${context.telegram.threadId ? `\n- Thread ID: ${context.telegram.threadId}` : ''}${context.telegram.username ? `\n- Username: @${context.telegram.username}` : ''}`)
+      }
+      break
+
+    case 'tui':
+      sections.push(`
+## Environment: Terminal UI (TUI)
+You are being executed from a terminal-based user interface.
+
+### Communication Guidelines:
+- Do NOT use telegram-messenger tools - they won't work in TUI
+- Return your responses as plain text - the TUI will display them
+- Use markdown formatting in your text responses
+- The TUI handles progress display via callbacks, no need for special tools
+- Keep responses readable in a terminal context`)
+      break
+
+    case 'cli':
+      sections.push(`
+## Environment: Command Line Interface (CLI)
+You are being executed from a CLI/script context.
+
+### Communication Guidelines:
+- Do NOT use telegram-messenger tools - they won't work in CLI
+- Return your responses as plain text
+- Be concise and structured for CLI output
+- Progress is handled by the calling process`)
+      break
+  }
+
+  return sections.join('\n')
 }
 
 export async function runAgent(
@@ -34,8 +103,14 @@ export async function runAgent(
     onMessage,
     onProgress,
     resumeSession,
-    additionalDirectories
+    additionalDirectories,
+    executionContext
   } = options
+
+  const contextPrompt = buildExecutionContextPrompt(executionContext)
+  const fullSystemPrompt = contextPrompt
+    ? `${SYSTEM_PROMPT}\n\n---\n\n${contextPrompt}`
+    : SYSTEM_PROMPT
 
   let sessionId = ''
   const toolCalls: ToolCallLog[] = []
@@ -49,7 +124,7 @@ export async function runAgent(
     logger.info(`Starting agent with prompt: "${userPrompt.slice(0, 100)}..."`)
 
     const queryOptions = {
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt: fullSystemPrompt,
       model,
       cwd: workingDirectory,
       maxTurns,

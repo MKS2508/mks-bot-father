@@ -2,6 +2,20 @@
  * Shared types for the Bot Manager Agent.
  */
 
+export type ExecutionEnvironment = 'telegram' | 'tui' | 'cli'
+
+export interface TelegramContext {
+  chatId: number
+  threadId?: number
+  userId: string
+  username?: string
+}
+
+export interface ExecutionContext {
+  environment: ExecutionEnvironment
+  telegram?: TelegramContext
+}
+
 export type SDKMessageType =
   | 'system'
   | 'assistant'
@@ -55,6 +69,7 @@ export interface AgentOptions {
   onProgress?: (event: ProgressEvent) => void
   resumeSession?: string
   additionalDirectories?: string[]
+  executionContext?: ExecutionContext
 }
 
 export interface Message {

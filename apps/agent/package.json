@@ -26,13 +26,17 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.1",
+    "@mks2508/better-logger": "^4.0.0",
     "@mks2508/mks-bot-father": "workspace:*",
     "@mks2508/shared-logger": "workspace:*",
-    "@mks2508/better-logger": "^4.0.0",
-    "zod": "^3.24.1",
+    "@mks2508/telegram-bot-manager": "^0.1.1",
+    "@mks2508/telegram-message-builder": "^0.4.0",
+    "@mks2508/telegram-message-builder-telegraf": "^0.1.2",
     "chalk": "^5.4.1",
+    "dotenv": "^16.4.7",
     "ora": "^8.0.0",
-    "dotenv": "^16.4.7"
+    "telegraf": "^4.16.3",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

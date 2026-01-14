@@ -15,8 +15,10 @@ import { initializeFileLogging } from './config/logging.js'
 import { getConfig } from './config/index.js'
 import { setConfirmationBot } from './state/confirmations.js'
 import { agentStateMiddleware } from './middleware/agent-state.js'
-import type { IContextState } from './types/agent.js'
+import { initializeSender } from './lib/telegram-sender.js'
+import { initializeTelegramLogger, isTelegramLoggingEnabled } from './lib/telegram-logger.js'
 import { isErr } from './types/result.js'
+import { telegramMessengerService } from '@mks2508/bot-manager-agent'
 
 // Import handlers
 import {
@@ -58,6 +60,20 @@ async function main(): Promise<void> {
   botManager.setBot(bot)
   setConfirmationBot(bot)
 
+  // Initialize telegram-message-builder integrations
+  initializeSender(bot.telegram)
+  initializeTelegramLogger(bot.telegram)
+  telegramMessengerService.initialize(bot.telegram)
+
+  if (isTelegramLoggingEnabled()) {
+    botLogger.info(
+      `${badge('LOGGER', 'pill')} ${kv({
+        status: colorText('enabled', colors.success),
+        target: 'Telegram channel',
+      })}`
+    )
+  }
+
   // Template middleware stack
   bot.use(errorHandler())
   bot.use(agentStateMiddleware())
@@ -93,14 +109,14 @@ async function main(): Promise<void> {
 
   botLogger.info('Starting Telegram bot...')
 
-  bot.launch()
-    .then(() => {
-      botLogger.success('Telegram bot started successfully!')
-    })
-    .catch((err) => {
-      botLogger.error(`Failed to start bot:`, err)
-      process.exit(1)
-    })
+  // launch() returns a Promise that resolves when bot STOPS, not when it starts
+  // So we log success immediately after calling launch() and handle errors in catch
+  bot.launch().catch((err) => {
+    botLogger.error(`Failed to start bot:`, err)
+    process.exit(1)
+  })
+
+  botLogger.success('Telegram bot started successfully!')
 }
 
 main().catch((error) => {

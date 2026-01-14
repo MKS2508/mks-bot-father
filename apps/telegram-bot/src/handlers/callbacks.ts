@@ -7,6 +7,8 @@ import { getOperation, cancelOperation as cancelOp } from '../state/index.js'
 import { handleHistory, handleStatus } from './commands.js'
 import { callbackLogger, badge, kv, colors, colorText } from '../middleware/logging.js'
 import { executePrompt } from './agent.js'
+import { buildOperationCancelledMessage } from '../utils/formatters.js'
+import { telegramMessengerService } from '@mks2508/bot-manager-agent'
 
 /** Parse callback data */
 export function parseCallbackData(data: string): { action: string; params: string[] } {
@@ -33,6 +35,21 @@ export async function handleCallback(ctx: Context): Promise<void> {
   )
 
   try {
+    // Check for ask_user_question callbacks first (format: ask_xxx:value)
+    if (telegramMessengerService.hasPendingCallback(data)) {
+      const processed = telegramMessengerService.processPendingCallback(data)
+      if (processed) {
+        await ctx.answerCbQuery('Response recorded')
+        // Delete the question message
+        try {
+          await ctx.deleteMessage()
+        } catch {
+          // Ignore delete errors
+        }
+        return
+      }
+    }
+
     switch (action) {
       case 'confirm':
         await handleConfirmCallback(ctx, params[0])
@@ -93,10 +110,8 @@ async function handleCancelOperationCallback(ctx: Context, operationId: string):
 
   if (success) {
     await ctx.answerCbQuery('🛑 Operation cancelled')
-    await ctx.editMessageText(
-      '🛑 *Operation Cancelled*\n\nThe operation was cancelled by user.',
-      { parse_mode: 'Markdown' }
-    )
+    const message = buildOperationCancelledMessage(true)
+    await ctx.editMessageText(message.text || '', { parse_mode: 'HTML' })
   } else {
     await ctx.answerCbQuery('Operation not found or already completed')
   }

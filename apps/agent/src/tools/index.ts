@@ -10,6 +10,7 @@ export { githubServer } from './github.js'
 export { coolifyServer } from './coolify.js'
 export { codeExecutorServer } from './code-executor.js'
 export { scaffolderServer } from './scaffolder.js'
+export { telegramMessengerServer } from './telegram-messenger.js'
 
 import { botManagerServer } from './bot-manager.js'
 import { envManagerServer } from './env-manager.js'
@@ -17,6 +18,7 @@ import { githubServer } from './github.js'
 import { coolifyServer } from './coolify.js'
 import { codeExecutorServer } from './code-executor.js'
 import { scaffolderServer } from './scaffolder.js'
+import { telegramMessengerServer } from './telegram-messenger.js'
 
 export const mcpServers = {
   'bot-manager': botManagerServer,
@@ -24,7 +26,8 @@ export const mcpServers = {
   'github': githubServer,
   'coolify': coolifyServer,
   'code-executor': codeExecutorServer,
-  'scaffolder': scaffolderServer
+  'scaffolder': scaffolderServer,
+  'telegram-messenger': telegramMessengerServer
 }
 
 export const allAllowedTools = [
@@ -83,5 +86,15 @@ export const allAllowedTools = [
 
   'mcp__scaffolder__scaffold_project',
   'mcp__scaffolder__validate_project',
-  'mcp__scaffolder__update_project_files'
+  'mcp__scaffolder__update_project_files',
+
+  'mcp__telegram-messenger__build_message',
+  'mcp__telegram-messenger__build_keyboard',
+  'mcp__telegram-messenger__send_message',
+  'mcp__telegram-messenger__send_media',
+  'mcp__telegram-messenger__edit_message',
+  'mcp__telegram-messenger__delete_message',
+  'mcp__telegram-messenger__ask_user_question',
+  'mcp__telegram-messenger__update_progress',
+  'mcp__telegram-messenger__format_tool_result'
 ]

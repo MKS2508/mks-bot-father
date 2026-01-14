@@ -8,7 +8,8 @@ import {
   runAgent,
   type AgentResult,
   type AgentOptions,
-  type ToolCallLog
+  type ToolCallLog,
+  type ExecutionContext
 } from '@mks2508/bot-manager-agent'
 import { agentLogger } from './logger.js'
 import { categorizeError } from './error-categorizer.js'
@@ -71,6 +72,10 @@ export class AgentBridge {
     // Build enriched prompt with conversation context
     const enrichedPrompt = this.buildContextPrompt(prompt)
 
+    const executionContext: ExecutionContext = {
+      environment: 'tui'
+    }
+
     try {
       log.debug('AGENT', 'Calling runAgent() from bot-manager-agent', {
         prompt: prompt.slice(0, 50),
@@ -80,6 +85,7 @@ export class AgentBridge {
       const result = await runAgent(enrichedPrompt, {
         ...options,
         resumeSession: this.sessionId || undefined,
+        executionContext,
         onMessage: (message) => {
           log.debug('AGENT', 'onMessage callback triggered', {
             messageType: typeof message === 'object' ? (message as {type?: string}).type : 'unknown'

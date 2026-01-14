@@ -15,7 +15,10 @@ export type {
   AgentOptions,
   Message,
   SessionInfo,
-  SDKMessageType
+  SDKMessageType,
+  ExecutionEnvironment,
+  ExecutionContext,
+  TelegramContext
 } from './types.js'
 
 // System prompt
@@ -28,8 +31,19 @@ export {
   botManagerServer,
   githubServer,
   coolifyServer,
-  codeExecutorServer
+  codeExecutorServer,
+  telegramMessengerServer
 } from './tools/index.js'
+
+// Telegram messenger service
+export { telegramMessengerService } from './services/telegram-service.js'
+export type {
+  IButtonConfig,
+  IUserResponse,
+  IKeyboardButton,
+  IMessageSection,
+  IBuildMessageOptions
+} from './services/telegram-service.js'
 
 // Subagents
 export { subagents } from './subagents/index.js'
