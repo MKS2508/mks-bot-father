@@ -130,6 +130,14 @@ export const DEFAULT_OVERLAY_CONFIGS: ShortcutOverlayConfig = {
     width: 40,
     height: 10,
   },
+
+  // Main Menu - Center overlay with blur effect
+  [Shortcut.MAIN_MENU]: {
+    position: 'center',
+    backdropOpacity: 0.6,
+    width: 60,
+    height: 20,
+  },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

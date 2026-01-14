@@ -32,8 +32,21 @@ export enum Shortcut {
   // Navigation
   AGENT_SWITCH = 'agent_switch',
 
+  // Audio
+  AUDIO_MUTE_TOGGLE = 'audio_mute_toggle',
+
+  // Main Menu
+  MAIN_MENU = 'main_menu',
+
   // System
   APP_EXIT = 'app_exit',
+
+  // Session Management
+  SESSION_CLEAR = 'session_clear',
+  SESSION_LIST = 'session_list',
+  SESSION_RESUME = 'session_resume',
+  SESSION_COMPACT = 'session_compact',
+  SESSION_CONTEXT = 'session_context',
 
   // Testing
   TEST_QUESTION_SINGLE = 'test_question_single',
@@ -56,6 +69,7 @@ export enum KeyName {
   F1 = 'f1',
   F2 = 'f2',
   F3 = 'f3',
+  F10 = 'f10',
 
   // Letters
   D = 'd',
@@ -63,6 +77,12 @@ export enum KeyName {
   H = 'h',
   K = 'k',
   C = 'c',
+  M = 'm',
+  R = 'r',
+  S = 's',
+  L = 'l',
+  P = 'p',
+  X = 'x',
 
   // Punctuation
   SEMICOLON = ';',
@@ -105,7 +125,10 @@ export enum ShortcutCategory {
   DEBUG = 'debug',
   MESSAGES = 'messages',
   NAVIGATION = 'navigation',
+  AUDIO = 'audio',
+  MENU = 'menu',
   SYSTEM = 'system',
+  SESSION = 'session',
   TESTING = 'testing',
 }
 
@@ -223,6 +246,28 @@ export const SHORTCUTS: ReadonlyArray<ShortcutConfig> = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════════════
+  // AUDIO
+  // ═══════════════════════════════════════════════════════════════════════════════
+  {
+    id: Shortcut.AUDIO_MUTE_TOGGLE,
+    keys: [{ name: KeyName.M, shift: true }],
+    description: 'Toggle Audio Mute',
+    category: ShortcutCategory.AUDIO,
+    enabledWhen: 'always',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // MAIN MENU
+  // ═══════════════════════════════════════════════════════════════════════════════
+  {
+    id: Shortcut.MAIN_MENU,
+    keys: [{ name: KeyName.ESCAPE, shift: true }],
+    description: 'Main Menu Overlay',
+    category: ShortcutCategory.MENU,
+    enabledWhen: 'always',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
   // SYSTEM
   // ═══════════════════════════════════════════════════════════════════════════════
   {
@@ -231,6 +276,45 @@ export const SHORTCUTS: ReadonlyArray<ShortcutConfig> = [
     description: 'Exit Application',
     category: ShortcutCategory.SYSTEM,
     enabledWhen: 'always',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // SESSION MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════════
+  {
+    id: Shortcut.SESSION_CLEAR,
+    keys: [{ name: KeyName.L, ctrl: true, shift: true }],
+    description: 'Clear Session (/clear)',
+    category: ShortcutCategory.SESSION,
+    enabledWhen: 'no_debug',
+  },
+  {
+    id: Shortcut.SESSION_LIST,
+    keys: [{ name: KeyName.S, ctrl: true, shift: true }],
+    description: 'List Sessions (/sessions)',
+    category: ShortcutCategory.SESSION,
+    enabledWhen: 'no_debug',
+  },
+  {
+    id: Shortcut.SESSION_RESUME,
+    keys: [{ name: KeyName.R, ctrl: true, shift: true }],
+    description: 'Resume Session (/resume)',
+    category: ShortcutCategory.SESSION,
+    enabledWhen: 'no_debug',
+  },
+  {
+    id: Shortcut.SESSION_COMPACT,
+    keys: [{ name: KeyName.P, ctrl: true, shift: true }],
+    description: 'Compact Session (/compact)',
+    category: ShortcutCategory.SESSION,
+    enabledWhen: 'no_debug',
+  },
+  {
+    id: Shortcut.SESSION_CONTEXT,
+    keys: [{ name: KeyName.X, ctrl: true, shift: true }],
+    description: 'Show Context (/context)',
+    category: ShortcutCategory.SESSION,
+    enabledWhen: 'no_debug',
   },
 
   // ═══════════════════════════════════════════════════════════════════════════════

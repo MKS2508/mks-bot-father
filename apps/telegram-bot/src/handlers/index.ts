@@ -10,7 +10,12 @@ export {
   handleStatus,
   handleHistory,
   handleCancel,
-  handleClear
+  handleClear,
+  handleRestart,
+  handleSessions,
+  handleResume,
+  handleContext,
+  handleCompact
 } from './commands.js'
 
 // Callback handlers

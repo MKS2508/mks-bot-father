@@ -22,6 +22,8 @@ export interface AgentCallbacks {
   onProgress?: (progress: number, message: string) => void
   onThinking?: (text: string) => void
   onToolComplete?: (execution: ToolExecution) => void
+  onStreamText?: (text: string) => void
+  onStreamThinking?: (thinking: string) => void
 }
 
 /**
@@ -190,6 +192,22 @@ export interface QuestionResponse {
 }
 
 /**
+ * Audio configuration for UI sounds.
+ */
+export interface AudioConfig {
+  enabled: boolean
+  volume: number
+}
+
+/**
+ * Default audio configuration.
+ */
+export const DEFAULT_AUDIO_CONFIG: AudioConfig = {
+  enabled: true,
+  volume: 0.5
+}
+
+/**
  * Splash screen configuration.
  */
 export interface SplashConfig {
@@ -329,7 +347,41 @@ export interface Message {
  * Agent information display.
  */
 export interface AgentInfo {
-  type: string
+  type: AgentType
   label: string
   color: string
+  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+  maxBudgetUsd: number
+}
+
+/**
+ * Available agent types.
+ */
+export type AgentType = 'build' | 'plan' | 'code'
+
+/**
+ * Agent type configurations.
+ */
+export const AGENT_CONFIGS: Record<AgentType, AgentInfo> = {
+  build: {
+    type: 'build',
+    label: 'Build',
+    color: '#72f1b8',
+    permissionMode: 'acceptEdits',
+    maxBudgetUsd: 10.0
+  },
+  plan: {
+    type: 'plan',
+    label: 'Plan',
+    color: '#fede5d',
+    permissionMode: 'plan',
+    maxBudgetUsd: 5.0
+  },
+  code: {
+    type: 'code',
+    label: 'Code',
+    color: '#36f9f6',
+    permissionMode: 'acceptEdits',
+    maxBudgetUsd: 10.0
+  }
 }

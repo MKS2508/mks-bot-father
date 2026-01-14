@@ -2,8 +2,8 @@
  * Command Handlers with template logging.
  */
 import type { Context } from 'telegraf'
-import { mainMenuKeyboard, historyPaginationKeyboard } from '../keyboards.js'
-import { memoryStore } from '@mks2508/bot-manager-agent/memory/store'
+import { mainMenuKeyboard, historyPaginationKeyboard, sessionListKeyboard } from '../keyboards.js'
+import { memoryStore, sessionService, compactionService } from '@mks2508/bot-manager-agent'
 import {
   buildStatusMessage,
   buildWelcomeMessage,
@@ -12,7 +12,10 @@ import {
   buildCancellationMessage,
   buildHistoryPageMessage,
   buildNoHistoryMessage,
-  buildHistoryEntry
+  buildHistoryEntry,
+  buildSessionListMessage,
+  buildContextStatsMessage,
+  buildCompactResultMessage
 } from '../utils/formatters.js'
 import { clearUserConfirmations } from '../state/confirmations.js'
 import { clearUserOperations, getUserOperations, cancelOperation } from '../state/index.js'
@@ -180,4 +183,221 @@ export async function handleClear(ctx: Context): Promise<void> {
   clearUserOperations(userId)
 
   await ctx.reply('🧹 Memoria, sesiones y confirmaciones eliminadas.')
+}
+
+/** /restart command - Only for authorized users */
+export async function handleRestart(ctx: Context): Promise<void> {
+  commandLogger.debug(
+    `${badge('CMD', 'rounded')} ${kv({
+      cmd: '/restart',
+      user: colorText(String(ctx.from?.id), colors.cyan),
+    })}`
+  )
+
+  const userId = ctx.from?.id.toString() || ''
+  const OWNER_ID = '265889349'
+  const authorizedUsers = process.env.ALLOWED_TELEGRAM_USERS?.split(',') || []
+
+  // Check authorization - owner is always authorized
+  if (userId !== OWNER_ID && !authorizedUsers.includes(userId)) {
+    commandLogger.warn(
+      `${badge('UNAUTHORIZED', 'rounded')} ${kv({
+        user: userId,
+        cmd: '/restart'
+      })}`
+    )
+    await ctx.reply('No tienes permisos para reiniciar el bot.')
+    return
+  }
+
+  // Confirm restart to user
+  await ctx.reply(
+    '<b>Reiniciando bot...</b>\n\n' +
+    'Volvere en unos segundos. Si no respondo en 10 segundos, ' +
+    'revisa los logs con <code>pm2 logs waxin-bot</code>',
+    { parse_mode: 'HTML' }
+  )
+
+  commandLogger.info(
+    `${badge('RESTART', 'pill')} ${kv({
+      requestedBy: colorText(userId, colors.cyan),
+      reason: 'Manual restart via /restart command'
+    })}`
+  )
+
+  // Give time for message to be sent
+  setTimeout(() => {
+    process.exit(0) // PM2 will restart automatically
+  }, 500)
+}
+
+/** /sessions command - List available sessions */
+export async function handleSessions(ctx: Context): Promise<void> {
+  commandLogger.debug(
+    `${badge('CMD', 'rounded')} ${kv({
+      cmd: '/sessions',
+      user: colorText(String(ctx.from?.id), colors.cyan),
+    })}`
+  )
+
+  const state = ctx.state as IContextState
+  const userId = state?.userId || ctx.from!.id.toString()
+
+  try {
+    const sessions = await sessionService.list({ userId, limit: 10, sortBy: 'lastMessageAt' })
+
+    if (sessions.length === 0) {
+      await ctx.reply(
+        '📂 <b>No hay sesiones guardadas</b>\n\n' +
+        'Inicia una conversación para crear una sesión.',
+        { parse_mode: 'HTML' }
+      )
+      return
+    }
+
+    await sendMessage(ctx, buildSessionListMessage(sessions), {
+      keyboard: sessionListKeyboard(sessions).reply_markup
+    })
+  } catch (error) {
+    commandLogger.error(
+      `${badge('ERROR', 'rounded')} ${kv({
+        cmd: '/sessions',
+        error: error instanceof Error ? error.message : String(error)
+      })}`
+    )
+    await ctx.reply('❌ Error al cargar sesiones.')
+  }
+}
+
+/** /resume [session_id] command - Resume a session */
+export async function handleResume(ctx: Context, sessionId?: string): Promise<void> {
+  commandLogger.debug(
+    `${badge('CMD', 'rounded')} ${kv({
+      cmd: '/resume',
+      user: colorText(String(ctx.from?.id), colors.cyan),
+      sessionId: sessionId || 'none'
+    })}`
+  )
+
+  const state = ctx.state as IContextState
+  const userId = state?.userId || ctx.from!.id.toString()
+
+  if (!sessionId) {
+    // Show session list for selection
+    return handleSessions(ctx)
+  }
+
+  try {
+    const session = await sessionService.get(sessionId)
+
+    if (!session) {
+      await ctx.reply('❌ Sesión no encontrada.')
+      return
+    }
+
+    // Store the session ID for future messages
+    await memoryStore.saveUserSession(userId, sessionId)
+
+    await ctx.reply(
+      `✅ <b>Sesión restaurada</b>\n\n` +
+      `📝 <b>ID:</b> <code>${sessionId}</code>\n` +
+      `💬 <b>Mensajes:</b> ${session.metadata.messageCount}\n` +
+      (session.metadata.name ? `📛 <b>Nombre:</b> ${session.metadata.name}\n` : '') +
+      (session.metadata.gitBranch ? `🌿 <b>Branch:</b> <code>${session.metadata.gitBranch}</code>\n` : '') +
+      '\nPuedes continuar la conversación normalmente.',
+      { parse_mode: 'HTML' }
+    )
+  } catch (error) {
+    commandLogger.error(
+      `${badge('ERROR', 'rounded')} ${kv({
+        cmd: '/resume',
+        error: error instanceof Error ? error.message : String(error)
+      })}`
+    )
+    await ctx.reply('❌ Error al restaurar la sesión.')
+  }
+}
+
+/** /context command - Show context usage stats */
+export async function handleContext(ctx: Context): Promise<void> {
+  commandLogger.debug(
+    `${badge('CMD', 'rounded')} ${kv({
+      cmd: '/context',
+      user: colorText(String(ctx.from?.id), colors.cyan),
+    })}`
+  )
+
+  const state = ctx.state as IContextState
+  const userId = state?.userId || ctx.from!.id.toString()
+
+  try {
+    const messages = (await memoryStore.load(userId)) as IStoredMessage[]
+    const sessionId = await memoryStore.getUserLastSessionId(userId)
+
+    const stats = compactionService.getTokenStats(messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp
+    })))
+
+    await sendMessage(ctx, buildContextStatsMessage({
+      sessionId: sessionId || 'none',
+      messageCount: messages.length,
+      estimatedTokens: stats.totalTokens,
+      threshold: stats.threshold,
+      percentUsed: stats.percentUsed,
+      shouldCompact: stats.shouldCompact
+    }))
+  } catch (error) {
+    commandLogger.error(
+      `${badge('ERROR', 'rounded')} ${kv({
+        cmd: '/context',
+        error: error instanceof Error ? error.message : String(error)
+      })}`
+    )
+    await ctx.reply('❌ Error al obtener estadísticas de contexto.')
+  }
+}
+
+/** /compact command - Compact session context */
+export async function handleCompact(ctx: Context): Promise<void> {
+  commandLogger.debug(
+    `${badge('CMD', 'rounded')} ${kv({
+      cmd: '/compact',
+      user: colorText(String(ctx.from?.id), colors.cyan),
+    })}`
+  )
+
+  const state = ctx.state as IContextState
+  const userId = state?.userId || ctx.from!.id.toString()
+  const sessionId = await memoryStore.getUserLastSessionId(userId)
+
+  if (!sessionId) {
+    await ctx.reply('⚠️ No hay sesión activa para compactar.')
+    return
+  }
+
+  try {
+    // Show compacting indicator
+    const statusMsg = await ctx.reply('⏳ Compactando sesión...')
+
+    const result = await compactionService.compact(sessionId, 'manual')
+
+    // Delete status message
+    try {
+      await ctx.telegram.deleteMessage(ctx.chat!.id, statusMsg.message_id)
+    } catch {
+      // Ignore delete errors
+    }
+
+    await sendMessage(ctx, buildCompactResultMessage(result))
+  } catch (error) {
+    commandLogger.error(
+      `${badge('ERROR', 'rounded')} ${kv({
+        cmd: '/compact',
+        error: error instanceof Error ? error.message : String(error)
+      })}`
+    )
+    await ctx.reply('❌ Error al compactar la sesión.')
+  }
 }

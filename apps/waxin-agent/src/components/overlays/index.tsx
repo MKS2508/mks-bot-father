@@ -22,6 +22,8 @@ export { FPSOverlay } from './FPSOverlay.js'
 export { PerformanceOverlay } from './PerformanceOverlay.js'
 export { QuestionTestOverlay } from './QuestionTestOverlay.js'
 export { AgentSwitchOverlay } from './AgentSwitchOverlay.js'
+export { MainMenuOverlay } from './MainMenuOverlay.js'
+export { SessionPickerOverlay } from './SessionPickerOverlay.js'
 
 // Map shortcut IDs to their overlay components
 import { Shortcut } from '../../shortcuts.js'
@@ -31,6 +33,8 @@ import { FPSOverlay } from './FPSOverlay.js'
 import { PerformanceOverlay } from './PerformanceOverlay.js'
 import { QuestionTestOverlay } from './QuestionTestOverlay.js'
 import { AgentSwitchOverlay } from './AgentSwitchOverlay.js'
+import { MainMenuOverlay } from './MainMenuOverlay.js'
+import { SessionPickerOverlay } from './SessionPickerOverlay.js'
 import type { ComponentType } from 'react'
 
 export interface OverlayComponentProps {
@@ -49,6 +53,10 @@ export const OVERLAY_COMPONENTS: Record<string, ComponentType<OverlayComponentPr
     <QuestionTestOverlay type="multi" {...props} />
   ),
   [Shortcut.AGENT_SWITCH]: AgentSwitchOverlay,
+  [Shortcut.MAIN_MENU]: MainMenuOverlay,
+  [Shortcut.SESSION_RESUME]: SessionPickerOverlay,
+  [Shortcut.SESSION_LIST]: SessionPickerOverlay,
+  // SESSION_CLEAR, SESSION_COMPACT, SESSION_CONTEXT handled via callbacks
   // MESSAGES_CLEAR uses a confirmation dialog, not a complex overlay
   // It will be handled separately in app.tsx
 }

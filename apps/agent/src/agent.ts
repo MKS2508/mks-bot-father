@@ -103,6 +103,7 @@ export async function runAgent(
     onMessage,
     onProgress,
     resumeSession,
+    forkSession = false,
     additionalDirectories,
     executionContext
   } = options
@@ -135,6 +136,7 @@ export async function runAgent(
       agents: subagents,
       allowedTools: allAllowedTools,
       ...(resumeSession && { resume: resumeSession }),
+      ...(forkSession && { forkSession: true }),
       ...(additionalDirectories && { additionalDirectories })
     }
 

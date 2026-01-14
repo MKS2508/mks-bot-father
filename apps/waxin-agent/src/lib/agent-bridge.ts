@@ -6,17 +6,21 @@
 
 import {
   runAgent,
+  sessionService,
+  compactionService,
   type AgentResult,
   type AgentOptions,
   type ToolCallLog,
-  type ExecutionContext
+  type ExecutionContext,
+  type SessionMetadata,
+  type CompactResult
 } from '@mks2508/bot-manager-agent'
 import { agentLogger } from './logger.js'
 import { categorizeError } from './error-categorizer.js'
 import { log } from './json-logger.js'
 import type { AgentCallbacks, ToolExecution } from '../types.js'
 
-export type { AgentResult, AgentOptions, ToolCallLog, AgentCallbacks, ToolExecution }
+export type { AgentResult, AgentOptions, ToolCallLog, AgentCallbacks, ToolExecution, SessionMetadata, CompactResult }
 
 interface ContentBlock {
   type: string
@@ -321,6 +325,35 @@ export class AgentBridge {
       }
     }
 
+    // Handle stream_event messages (partial text/thinking)
+    if (msg.type === 'stream_event') {
+      const streamMsg = msg as {
+        type: string
+        event?: {
+          type?: string
+          delta?: {
+            type?: string
+            text?: string
+            thinking?: string
+          }
+        }
+      }
+
+      if (streamMsg.event?.delta) {
+        const delta = streamMsg.event.delta
+
+        if (delta.type === 'text_delta' && delta.text) {
+          log.debug('AGENT', 'Streamed text delta', { length: delta.text.length })
+          callbacks.onStreamText?.(delta.text)
+        }
+
+        if (delta.type === 'thinking_delta' && delta.thinking) {
+          log.debug('AGENT', 'Streamed thinking delta', { length: delta.thinking.length })
+          callbacks.onStreamThinking?.(delta.thinking)
+        }
+      }
+    }
+
     // Handle final result from result messages
     if (msg.type === 'result' && msg.result) {
       log.info('AGENT', 'Final result received', {
@@ -369,6 +402,125 @@ export class AgentBridge {
     this.pendingToolResponse = null
     this.conversationHistory = []
     log.info('AGENT', 'Session cleared', { clearedHistory: true })
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // SESSION MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════════
+
+  async listSessions(userId?: string, limit = 20): Promise<SessionMetadata[]> {
+    log.info('SESSION', 'Listing sessions', { userId, limit })
+    return sessionService.list({ userId, limit, sortBy: 'lastMessageAt' })
+  }
+
+  async resumeSession(sessionId: string): Promise<boolean> {
+    const session = await sessionService.get(sessionId)
+    if (!session) {
+      log.warn('SESSION', 'Session not found', { sessionId })
+      return false
+    }
+
+    this.sessionId = sessionId
+    log.info('SESSION', 'Session resumed', { sessionId, messageCount: session.metadata.messageCount })
+    return true
+  }
+
+  async forkSession(name?: string): Promise<SessionMetadata | null> {
+    if (!this.sessionId) {
+      log.warn('SESSION', 'No active session to fork')
+      return null
+    }
+
+    const forked = await sessionService.fork(this.sessionId, { name })
+    if (forked) {
+      log.info('SESSION', 'Session forked', {
+        originalId: this.sessionId,
+        forkedId: forked.sessionId
+      })
+    }
+    return forked
+  }
+
+  async clearSession(): Promise<boolean> {
+    if (!this.sessionId) {
+      this.clear()
+      return true
+    }
+
+    const success = await sessionService.clear(this.sessionId)
+    if (success) {
+      this.conversationHistory = []
+      log.info('SESSION', 'Session messages cleared', { sessionId: this.sessionId })
+    }
+    return success
+  }
+
+  async compactSession(): Promise<CompactResult | null> {
+    if (!this.sessionId) {
+      log.warn('SESSION', 'No active session to compact')
+      return null
+    }
+
+    log.info('SESSION', 'Starting compaction', { sessionId: this.sessionId })
+    const result = await compactionService.compact(this.sessionId, 'manual')
+
+    if (result.success) {
+      log.info('SESSION', 'Compaction complete', {
+        previousTokens: result.previousTokens,
+        newTokens: result.newTokens,
+        reduction: `${((1 - result.newTokens / result.previousTokens) * 100).toFixed(1)}%`
+      })
+    } else {
+      log.error('SESSION', 'Compaction failed', { summary: result.summary })
+    }
+
+    return result
+  }
+
+  async getContextStats(): Promise<{
+    sessionId: string
+    messageCount: number
+    historyLength: number
+    estimatedTokens: number
+    threshold: number
+    percentUsed: number
+    shouldCompact: boolean
+  }> {
+    const messages = this.conversationHistory.map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp
+    }))
+
+    const stats = compactionService.getTokenStats(messages)
+
+    return {
+      sessionId: this.sessionId,
+      messageCount: this.conversationHistory.length,
+      historyLength: this.conversationHistory.length,
+      estimatedTokens: stats.totalTokens,
+      threshold: stats.threshold,
+      percentUsed: stats.percentUsed,
+      shouldCompact: stats.shouldCompact
+    }
+  }
+
+  async renameSession(name: string): Promise<boolean> {
+    if (!this.sessionId) {
+      log.warn('SESSION', 'No active session to rename')
+      return false
+    }
+
+    const updated = await sessionService.rename(this.sessionId, name)
+    if (updated) {
+      log.info('SESSION', 'Session renamed', { sessionId: this.sessionId, name })
+    }
+    return !!updated
+  }
+
+  async getSessionMetadata(): Promise<SessionMetadata | null> {
+    if (!this.sessionId) return null
+    return sessionService.getMetadata(this.sessionId)
   }
 
   getConversationHistory(): ConversationMessage[] {

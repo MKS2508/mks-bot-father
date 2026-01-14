@@ -63,11 +63,12 @@ export interface AgentOptions {
   maxTurns?: number
   model?: string
   maxBudgetUsd?: number
-  permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
+  permissionMode?: PermissionModeType
   includePartial?: boolean
   onMessage?: (message: unknown) => void
   onProgress?: (event: ProgressEvent) => void
   resumeSession?: string
+  forkSession?: boolean
   additionalDirectories?: string[]
   executionContext?: ExecutionContext
 }
@@ -85,3 +86,46 @@ export interface SessionInfo {
   lastMessageAt: string
   messageCount: number
 }
+
+export interface SessionMetadata {
+  sessionId: string
+  name?: string
+  createdAt: string
+  lastMessageAt: string
+  messageCount: number
+  userId?: string
+  gitBranch?: string
+  projectPath?: string
+  model?: string
+  isForked?: boolean
+  parentSessionId?: string
+  totalCostUsd?: number
+  inputTokens?: number
+  outputTokens?: number
+}
+
+export interface SessionData {
+  metadata: SessionMetadata
+  messages: Message[]
+  summary?: string
+}
+
+export type CompactTrigger = 'manual' | 'auto'
+
+export interface CompactResult {
+  success: boolean
+  previousTokens: number
+  newTokens: number
+  summary: string
+  trigger: CompactTrigger
+}
+
+export interface SessionListOptions {
+  userId?: string
+  limit?: number
+  offset?: number
+  sortBy?: 'createdAt' | 'lastMessageAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type PermissionModeType = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'

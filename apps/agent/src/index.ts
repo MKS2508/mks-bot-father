@@ -51,3 +51,17 @@ export type { AgentDefinition } from './subagents/index.js'
 
 // Memory store
 export { memoryStore } from './memory/store.js'
+
+// Session management
+export { sessionService } from './session/index.js'
+export type {
+  SessionMetadata,
+  SessionData,
+  SessionListOptions,
+  CompactResult,
+  CompactTrigger,
+  PermissionModeType
+} from './types.js'
+
+// Compaction service
+export { compactionService } from './compaction/index.js'
