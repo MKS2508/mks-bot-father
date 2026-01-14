@@ -34,6 +34,7 @@ import {
   failProgress,
   removeProgressTracker
 } from '../lib/progress-tracker.js'
+import { StreamingHandler } from '../lib/streaming-handler.js'
 import type { IContextState } from '../types/agent.js'
 
 /** Map tool names to human-readable step descriptions */
@@ -84,13 +85,16 @@ export async function executePrompt(
   // Create operation for tracking
   const operation = createOperation(chatId, 0, userId, prompt)
 
-  // Create progress tracker with visual progress bar
+  // Get thread ID if in a topic
   const threadId = ctx.message && 'message_thread_id' in ctx.message
     ? ctx.message.message_thread_id
     : undefined
 
-  createProgressTracker(operation.id, ctx.telegram, chatId, threadId, 10)
-  await startProgress(operation.id, '🤔 Processing your request...', 10)
+  // Create streaming handler for real-time feedback
+  const streamingHandler = new StreamingHandler(ctx.telegram, chatId, threadId)
+  await streamingHandler.start('Procesando tu solicitud...')
+
+  // Legacy progress tracker removed - StreamingHandler handles all feedback
 
   // Save user message
   await memoryStore.append(userId, {
@@ -120,41 +124,146 @@ export async function executePrompt(
     }
   }
 
+  // Track tool IDs for matching tool_use with tool_result
+  const toolIdMap = new Map<string, string>()
+
   try {
     const result = await runAgent(enrichedPrompt, {
       maxTurns: 30,
       resumeSession: lastSessionId || undefined,
       executionContext,
+      includePartial: true,
       onMessage: async (msg) => {
-        const typedMsg = msg as { type: string; tool_name?: string }
+        interface IContentBlock {
+          type: string
+          text?: string
+          name?: string
+          input?: unknown
+          id?: string
+          content?: string | unknown
+          is_error?: boolean
+        }
+
+        interface IStreamEvent {
+          type: string
+          delta?: {
+            type: string
+            text?: string
+            thinking?: string
+          }
+        }
+
+        const message = msg as {
+          type: string
+          subtype?: string
+          session_id?: string
+          content?: IContentBlock[]
+          message?: { content?: IContentBlock[] }
+          thinking?: string
+          tool_name?: string
+          event?: IStreamEvent
+        }
 
         // Check if cancelled
         if (isOperationCancelled(operation.id)) {
           throw new Error('Operation cancelled by user')
         }
 
-        if (typedMsg.type === 'tool_call' && typedMsg.tool_name) {
-          // Update steps based on tool call
-          updateStepsFromToolCall(operation.id, typedMsg.tool_name)
-          stepCount++
+        // Log session init
+        if (message.type === 'system' && message.subtype === 'init') {
+          agentLogger.debug(`${badge('SESSION', 'rounded')} ${kv({ id: message.session_id?.slice(0, 8) })}`)
+        }
 
-          // Update visual progress
-          const toolLabel = TOOL_STEP_LABELS[typedMsg.tool_name] || `🔧 ${typedMsg.tool_name}...`
-          try {
-            await updateProgress(operation.id, Math.min(stepCount, 9), toolLabel)
-          } catch {
-            // Ignore progress update errors
+        // Handle thinking text
+        if (message.thinking) {
+          await streamingHandler.onThinking(message.thinking)
+        }
+
+        // Get content blocks (either direct or nested)
+        const contentBlocks = Array.isArray(message.content)
+          ? message.content
+          : (message.message && Array.isArray(message.message.content) ? message.message.content : null)
+
+        // Process assistant content blocks
+        if (message.type === 'assistant' && contentBlocks) {
+          for (const block of contentBlocks) {
+            if (block.type === 'text' && block.text) {
+              // Stream text to handler (saved for final message)
+              await streamingHandler.onAssistantText(block.text)
+            } else if (block.type === 'tool_use' && block.name && block.id) {
+              // Tool starting
+              stepCount++
+              toolIdMap.set(block.id, block.name)
+
+              // Update streaming handler
+              await streamingHandler.onToolStart(block.name, block.id, block.input)
+
+              // Small delay to allow Telegram message update
+              await new Promise(resolve => setTimeout(resolve, 100))
+
+              agentLogger.debug(
+                `${badge('TOOL', 'rounded')} ${kv({
+                  name: colorText(block.name.split('__').pop() || block.name, colors.cyan),
+                  step: stepCount
+                })}`
+              )
+            } else if (block.type === 'tool_result' && block.id) {
+              // Tool completed - find the tool name
+              const toolName = toolIdMap.get(block.id) || 'unknown'
+              const isError = block.is_error === true
+              const resultContent = block.content || block.text || ''
+
+              await streamingHandler.onToolComplete(block.id, resultContent, isError)
+
+              // Small delay to allow Telegram message update
+              await new Promise(resolve => setTimeout(resolve, 100))
+
+              if (isError) {
+                agentLogger.debug(
+                  `${badge('TOOL_ERR', 'rounded')} ${kv({
+                    tool: toolName.split('__').pop(),
+                    error: String(resultContent).slice(0, 50)
+                  })}`
+                )
+              }
+            }
+          }
+        }
+
+        // Process stream_event messages (partial text/thinking)
+        if (message.type === 'stream_event' && message.event?.delta) {
+          const delta = message.event.delta
+
+          if (delta.type === 'text_delta' && delta.text) {
+            await streamingHandler.onStreamText(delta.text)
+          }
+
+          if (delta.type === 'thinking_delta' && delta.thinking) {
+            await streamingHandler.onStreamThinking(delta.thinking)
           }
         }
       }
     })
 
+    // Clean up streaming handler
+    await streamingHandler.finish()
+
     // Mark operation complete
     completeOperation(operation.id, result.success)
 
+    // Log execution summary
+    const toolsExecuted = streamingHandler.getCompletedToolCount()
+    const totalToolTime = streamingHandler.getTotalDuration()
+    agentLogger.info(
+      `${badge('DONE', 'rounded')} ${kv({
+        success: result.success ? 'yes' : 'no',
+        tools: toolsExecuted,
+        toolTime: `${totalToolTime}ms`,
+        totalTime: `${result.durationMs}ms`
+      })}`
+    )
+
     if (result.success && result.result) {
-      // Complete progress with success
-      await completeProgress(operation.id, '✅ Task completed!')
       // Format and send response using unified helper
       const messages = buildAgentResponse(result.result)
       for (const message of messages) {
@@ -189,32 +298,23 @@ export async function executePrompt(
         }
       }
 
-      // Smart stats display
-      if (shouldShowExpandedStats(result)) {
-        await sendMessage(ctx, buildStatsMessage(result, true), {
-          keyboard: statsToggleKeyboard(operation.id, true).reply_markup
-        })
-      } else if (result.durationMs > 2000) {
-        // Show compact stats for operations > 2s
-        await sendMessage(ctx, buildStatsMessage(result, false))
-      }
-      // Skip stats entirely for quick operations (<2s)
+      // Stats removed - StreamingHandler shows execution summary
     } else {
       // Error handling with formatted message
       const errorMsg = result.errors[0] || 'Task could not be completed'
-      await failProgress(operation.id, `❌ ${errorMsg}`)
       await sendMessage(ctx, buildErrorMessage(errorMsg))
     }
   } catch (error) {
+    // Clean up streaming handler
+    await streamingHandler.finish()
+
     completeOperation(operation.id, false)
 
     const errorMsg = error instanceof Error ? error.message : String(error)
 
     if (errorMsg === 'Operation cancelled by user') {
-      removeProgressTracker(operation.id)
       await sendMessage(ctx, buildOperationCancelledMessage())
     } else {
-      await failProgress(operation.id, `❌ Error: ${errorMsg.slice(0, 50)}`)
       agentLogger.error(`Error processing message: ${errorMsg}`)
       await sendMessage(ctx, buildErrorMessage(errorMsg))
     }
