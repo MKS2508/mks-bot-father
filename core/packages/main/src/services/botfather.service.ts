@@ -14,8 +14,18 @@ import { createLogger, log as fileLog } from '../utils/index.js'
 import { getConfigService } from './config.service.js'
 import { AppErrorCode } from '../types/errors.js'
 import type { IProgressCallback } from '../types/progress.types.js'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 const log = createLogger('BotFatherService')
+
+/**
+ * Get unified core directory for bot configurations.
+ * Priority: MKS_CORE_DIR env var > ~/.mks-bot-father/core
+ */
+function getCoreDir(): string {
+  return process.env.MKS_CORE_DIR || join(homedir(), '.mks-bot-father', 'core')
+}
 
 /**
  * Bot creation options.
@@ -191,7 +201,7 @@ export class BotFatherService {
 
       if (createResult.botUsername && createResult.botToken) {
         onProgress?.(95, 'Saving bot token to environment...', 'save')
-        const envManager = new EnvManager()
+        const envManager = new EnvManager({ coreDir: getCoreDir() })
         await envManager.createEnv(createResult.botUsername, 'local', {
           botToken: createResult.botToken,
           mode: 'polling',

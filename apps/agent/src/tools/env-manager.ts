@@ -9,8 +9,25 @@ import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { EnvManager } from '@mks2508/telegram-bot-manager'
 import { createToolLogger } from '../utils/tool-logger.js'
+import { homedir } from 'os'
+import { join } from 'path'
 
 const environmentSchema = z.enum(['local', 'staging', 'production']).default('local')
+
+/**
+ * Get the unified core directory for bot configurations.
+ * Priority: MKS_CORE_DIR env var > ~/.mks-bot-father/core
+ */
+function getCoreDir(): string {
+  return process.env.MKS_CORE_DIR || join(homedir(), '.mks-bot-father', 'core')
+}
+
+/**
+ * Create EnvManager instance with unified core directory.
+ */
+function createEnvManager(): EnvManager {
+  return new EnvManager({ coreDir: getCoreDir() })
+}
 
 export const envManagerServer = createSdkMcpServer({
   name: 'env-manager',
@@ -28,7 +45,7 @@ Returns all bots with their environments and active status.`,
         const startTime = log.start({})
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
           const bots = envManager.listBots()
           const activeBot = envManager.getActiveBot()
 
@@ -68,7 +85,7 @@ Returns the username of the active bot or null if none is set.`,
         const startTime = log.start({})
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
           const activeBot = envManager.getActiveBot()
 
           log.success(startTime, { activeBot })
@@ -108,7 +125,7 @@ This determines which bot is used by default in other operations.`,
         const startTime = log.start({ botUsername: args.botUsername })
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
 
           if (!envManager.botExists(args.botUsername)) {
             log.error(startTime, 'Bot not found', { botUsername: args.botUsername })
@@ -162,7 +179,7 @@ Returns the parsed environment configuration including token, mode, chat IDs, et
         const startTime = log.start({ botUsername: args.botUsername, environment: args.environment })
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
 
           if (!envManager.botExists(args.botUsername)) {
             log.error(startTime, 'Bot not found', { botUsername: args.botUsername })
@@ -228,7 +245,7 @@ Merges the updates with existing configuration.`,
         })
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
 
           if (!envManager.botExists(args.botUsername)) {
             log.error(startTime, 'Bot not found', { botUsername: args.botUsername })
@@ -283,7 +300,7 @@ WARNING: This permanently removes all environment files for this bot.`,
         const startTime = log.start({ botUsername: args.botUsername })
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
 
           if (!envManager.botExists(args.botUsername)) {
             log.error(startTime, 'Bot not found', { botUsername: args.botUsername })
@@ -336,7 +353,7 @@ Metadata includes creation date, last modified, and custom properties.`,
         const startTime = log.start({ botUsername: args.botUsername })
 
         try {
-          const envManager = new EnvManager()
+          const envManager = createEnvManager()
 
           if (!envManager.botExists(args.botUsername)) {
             log.error(startTime, 'Bot not found', { botUsername: args.botUsername })
