@@ -5,9 +5,8 @@
  * Sessions are stored in ~/.claude/projects/ for interoperability.
  */
 
-import { readFile, writeFile, mkdir, readdir, unlink, stat } from 'fs/promises'
-import { join, basename } from 'path'
-import { existsSync } from 'fs'
+import { readFile, writeFile, mkdir, readdir, unlink } from 'fs/promises'
+import { join } from 'path'
 import { homedir } from 'os'
 import { execSync } from 'child_process'
 import type {

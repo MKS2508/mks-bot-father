@@ -24,6 +24,7 @@ import {
 import { EmptyLayout, ChatLayout } from './layouts/index.js'
 import { HelpDialogContent } from './components/help/HelpDialogContent.js'
 import { getActiveQuestion, answerQuestion, cancelQuestion, subscribeToQuestions, showQuestion } from './hooks/index.js'
+import { getAudioManager } from './lib/audio-manager.js'
 import type { BannerConfig, UserQuestion } from './types.js'
 import type { DebugTab } from './components/index.js'
 import { DEFAULT_BANNER_CONFIG, DEFAULT_SPLASH_CONFIG } from './types.js'
@@ -32,6 +33,7 @@ import { readFileSync } from 'fs'
 import { Shortcut, SHORTCUTS, matchesShortcut, matchesSequence, isShortcutEnabled, createSequenceTracker } from './shortcuts.js'
 import { DialogProvider, useDialog, useDialogState } from '@opentui-ui/dialog/react'
 import type { OverlayConfig } from './components/overlays/OverlayTypes.js'
+import { getOverlayComponent, DEFAULT_OVERLAY_CONFIGS } from './components/overlays/index.js'
 import { THEME } from './theme/colors.js'
 
 const MODE = process.env.MODE || 'DEBUG'
@@ -71,15 +73,22 @@ function getNextAgent(current: AgentType): AgentType {
  * Maps UI agent types to SDK options.
  */
 function getAgentOptions(agentType: AgentType): import('./lib/agent-bridge.js').AgentOptions {
+  // Base options with includePartial for streaming support
+  const baseOptions = {
+    includePartial: true  // Enable stream_event messages for real-time text/thinking
+  }
+
   switch (agentType) {
     case 'plan':
       return {
+        ...baseOptions,
         permissionMode: 'default',
         model: 'claude-sonnet-4-5',
         maxBudgetUsd: 5.0
       }
     case 'code':
       return {
+        ...baseOptions,
         permissionMode: 'acceptEdits',
         model: 'claude-sonnet-4-5',
         maxBudgetUsd: 10.0
@@ -87,6 +96,7 @@ function getAgentOptions(agentType: AgentType): import('./lib/agent-bridge.js').
     case 'build':
     default:
       return {
+        ...baseOptions,
         permissionMode: 'acceptEdits',
         model: 'claude-sonnet-4-5',
         maxBudgetUsd: 10.0
@@ -108,6 +118,9 @@ const AppContent = () => {
   const [isExecuting, setIsExecuting] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
+  // Streaming state for real-time thinking and text
+  const [streamedThinking, setStreamedThinking] = useState<string>('')
+  const [streamedText, setStreamedText] = useState<string>('')
   const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([])
   const [currentAgent, setCurrentAgent] = useState<AgentType>('build')
   const [bannerConfig] = useState<BannerConfig>(DEFAULT_BANNER_CONFIG)
@@ -116,6 +129,7 @@ const AppContent = () => {
   const [debugMode, setDebugMode] = useState(false)
   const [debugTab, setDebugTab] = useState<DebugTab>('colors')
   const [textareaFocused, setTextareaFocused] = useState(true)
+  const [audioEnabled, setAudioEnabled] = useState(getAudioManager().isEnabled())
   const textareaRef = useRef<TextareaRenderable | null>(null)
   const sequenceTrackerRef = useRef(createSequenceTracker())
 
@@ -167,6 +181,13 @@ const AppContent = () => {
       case Shortcut.AGENT_SWITCH:
         setCurrentAgent(prev => getNextAgent(prev))
         log.info('TUI', 'Agent switched')
+        break
+
+      case Shortcut.AUDIO_MUTE_TOGGLE:
+        const audioManager = getAudioManager()
+        const newState = audioManager.toggle()
+        setAudioEnabled(newState)
+        log.info('TUI', `Audio ${newState ? 'enabled' : 'disabled'}`)
         break
 
       case Shortcut.APP_EXIT:
@@ -252,6 +273,7 @@ const AppContent = () => {
       [Shortcut.TEST_QUESTION_SINGLE]: '❓ Test Question (Single)',
       [Shortcut.TEST_QUESTION_MULTI]: '🔘 Test Question (Multi)',
       [Shortcut.AGENT_SWITCH]: '🤖 Agent Switcher',
+      [Shortcut.MAIN_MENU]: '🎯 Main Menu',
     }
     const title = titles[shortcutId]
 
@@ -403,6 +425,13 @@ const AppContent = () => {
           return
         }
 
+        // Check if shortcut has an overlay component
+        const overlayComponent = getOverlayComponent(shortcut.id)
+        if (overlayComponent && DEFAULT_OVERLAY_CONFIGS[shortcut.id]) {
+          showOverlay(shortcut.id)
+          return
+        }
+
         // All other shortcuts use the shared executor
         executeShortcut(shortcut.id)
         return
@@ -445,6 +474,9 @@ const AppContent = () => {
 
       setIsExecuting(true)
       setIsStreaming(false)
+      // Clear streaming state for new execution
+      setStreamedThinking('')
+      setStreamedText('')
       setMessages((prev) => [
         ...prev,
         { role: 'user', content: text, timestamp: new Date() }
@@ -503,6 +535,24 @@ const AppContent = () => {
               setMessages((prev) => [
                 ...prev,
                 { role: 'tool', content: tool, timestamp: new Date() }
+              ])
+
+              // Create initial ToolExecution for tracking
+              const toolId = `${tool}_${Date.now()}`
+              setToolExecutions((prev) => [
+                ...prev,
+                {
+                  tool,
+                  input,
+                  startTime: Date.now(),
+                  blockId: toolId,
+                  progressUpdates: [{
+                    timestamp: Date.now(),
+                    progress: 0,
+                    message: `Starting ${tool}...`,
+                    step: 'init'
+                  }]
+                }
               ])
 
               // Intercept AskUserQuestion tool calls
@@ -580,6 +630,16 @@ const AppContent = () => {
                 }
                 return prev
               })
+            },
+            // Streaming callbacks for real-time text/thinking
+            onStreamThinking: (chunk: string) => {
+              log.debug('AGENT', 'Streamed thinking chunk', { length: chunk.length })
+              setStreamedThinking(prev => prev + chunk)
+            },
+            onStreamText: (chunk: string) => {
+              log.debug('AGENT', 'Streamed text chunk', { length: chunk.length })
+              setStreamedText(prev => prev + chunk)
+              setIsStreaming(true)
             }
           }
         )
@@ -636,6 +696,9 @@ const AppContent = () => {
 
       setIsExecuting(false)
       setIsStreaming(false)
+      // Clear streaming state after execution
+      setStreamedThinking('')
+      setStreamedText('')
       log.debug('TUI', 'Execution finished', { durationMs: Date.now() - startTime })
     },
     [agent, isExecuting, currentAgent]
@@ -676,6 +739,7 @@ const AppContent = () => {
         config={DEFAULT_SPLASH_CONFIG}
         showHeader={SHOW_HEADER}
         waxinText={waxinText}
+        audioEnabled={audioEnabled}
         onComplete={() => {
           log.info('TUI', 'Splash screen completed')
           setSplashVisible(false)
@@ -707,6 +771,8 @@ const AppContent = () => {
             waxinText={waxinText || 'WAXIN MK1 😈'}
             isDialogOpen={isDialogOpen}
             toolExecutions={toolExecutions}
+            streamedThinking={streamedThinking}
+            streamedText={streamedText}
           />
         ) : (
           <EmptyLayout
@@ -716,6 +782,8 @@ const AppContent = () => {
             isDialogOpen={isDialogOpen}
             showHeader={true}
             waxinText={waxinText || 'WAXIN MK1 😈'}
+            streamedThinking={streamedThinking}
+            streamedText={streamedText}
           />
         )}
       </box>
@@ -866,6 +934,12 @@ export async function startTUI(): Promise<void> {
     node: process.version,
     platform: process.platform
   })
+
+  // Play startup sound immediately (one of the first things to do)
+  const audioManager = getAudioManager()
+  audioManager.play('assets/sound_effect.mp3')
+    .then(() => log.info('TUI', 'Startup sound played'))
+    .catch(err => log.warn('TUI', 'Failed to play startup sound', { error: err }))
 
   // Initialize Banner image backends
   const backend = await initImageBackends()

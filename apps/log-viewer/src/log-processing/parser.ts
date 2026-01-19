@@ -47,7 +47,37 @@ export class LogParser {
     if (!line.trim()) return null
 
     try {
-      return JSON.parse(line) as JsonLogEntry
+      const parsed = JSON.parse(line)
+      // Transform timestamp -> ts for compatibility
+      if (parsed.timestamp && !parsed.ts) {
+        parsed.ts = parsed.timestamp
+      }
+      // Transform source -> src for compatibility
+      if (parsed.source && !parsed.src) {
+        parsed.src = parsed.source
+      }
+      // Transform message -> msg for compatibility
+      if (parsed.message && !parsed.msg) {
+        parsed.msg = parsed.message
+      }
+      // Normalize level - ensure it's one of the expected values
+      if (parsed.level) {
+        const levelUpper = parsed.level.toUpperCase()
+        // Map any variation to standard levels
+        if (levelUpper === 'DEBUG' || levelUpper === 'TRACE') {
+          parsed.level = 'DBG'
+        } else if (levelUpper === 'INFO' || levelUpper === 'INF') {
+          parsed.level = 'INF'
+        } else if (levelUpper === 'WARN' || levelUpper === 'WARNING' || levelUpper === 'WRN') {
+          parsed.level = 'WRN'
+        } else if (levelUpper === 'ERROR' || levelUpper === 'ERR') {
+          parsed.level = 'ERR'
+        } else {
+          // Default to INF for unknown levels
+          parsed.level = 'INF'
+        }
+      }
+      return parsed as JsonLogEntry
     } catch {
       // Try legacy format: [timestamp] [level] [component] message
       const match = line.match(/\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)/)

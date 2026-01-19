@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { isOk, isErr } from '@mks2508/no-throw'
 import { getCoolifyService } from '@mks2508/mks-bot-father'
 import { createToolLogger } from '../utils/tool-logger.js'
+import { progressEmitter } from '../services/progress-emitter.js'
 
 export const coolifyServer = createSdkMcpServer({
   name: 'coolify',
@@ -52,14 +53,16 @@ Can force rebuild without cache if needed.`,
             }
           }
 
+          // Emit progress to Telegram
+          progressEmitter.emitProgress(30, 'Starting deployment...', 'deploy', { tool: 'coolify.deploy' })
+
           const result = await coolify.deploy({
             uuid: args.uuid,
             force: args.force,
-            tag: args.tag,
-            onProgress: (pct, msg, step) => {
-              progressEvents.push({ pct, msg, step })
-            }
+            tag: args.tag
           })
+
+          progressEmitter.emitProgress(90, 'Deployment triggered', 'done', { tool: 'coolify.deploy' })
 
           if (isOk(result)) {
             log.success(startTime, { deploymentUuid: result.value.deploymentUuid, resourceUuid: result.value.resourceUuid })

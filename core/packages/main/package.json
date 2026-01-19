@@ -55,9 +55,10 @@
     "url": "https://github.com/MKS2508/mks-bot-father/issues"
   },
   "dependencies": {
-    "@mks2508/telegram-bot-manager": "^0.1.1",
+    "@mks2508/telegram-bot-manager": "^0.1.2",
     "@mks2508/better-logger": "^4.0.0",
     "@mks2508/no-throw": "^0.1.0",
+    "@mks2508/shared-logger": "workspace:*",
     "arktype": "^2.1.29",
     "commander": "^14.0.0",
     "chalk": "^5.4.1",

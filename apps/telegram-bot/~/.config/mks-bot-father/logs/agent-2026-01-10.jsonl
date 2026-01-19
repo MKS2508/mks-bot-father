@@ -1,0 +1,74 @@
+{"ts":"2026-01-10T21:45:36.785Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nAssistant: laín 3al t4b0n m0k... pos vale waxo, te lo resumo socio:\n\n---\n\n##...\""}
+{"ts":"2026-01-10T21:45:37.868Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T21:45:47.152Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T21:47:49.818Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nAssistant: laín 3al t4b0n m0k...\n\nbro, ¿qué pwd quieres? ¿el del sistema en ...\""}
+{"ts":"2026-01-10T21:47:50.708Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T21:47:57.522Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:47:57.530Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:47:57.537Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:48:05.956Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:48:05.964Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:48:05.973Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:48:05.980Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T21:48:11.161Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:04:15.103Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Busca markdown en apps\n\nAssistant: mira waxin, estoy en un directorio...\""}
+{"ts":"2026-01-10T22:04:16.145Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:04:27.577Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:12:10.766Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: El el directorio apps de donde estás\n\nAssistant: ahí está waxin! l4ín...\""}
+{"ts":"2026-01-10T22:12:11.799Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:12:25.692Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:12:25.712Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:12:25.721Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:12:25.728Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:12:30.006Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:12:52.095Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:14:28.215Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Necesito que dentro de ese directorio encuentres todos los markdown\n\n...\""}
+{"ts":"2026-01-10T22:14:29.142Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:14:39.662Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:14:39.671Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:14:39.678Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:14:44.297Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:14:53.857Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:14:57.239Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:15:04.422Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:15:04.429Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:15:34.024Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:16:50.326Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Holaa puedes crear un plan?\n\nAssistant: klk waxin! sile, te voy a cre...\""}
+{"ts":"2026-01-10T22:16:51.212Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:16:57.332Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:17:04.870Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:17:08.313Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:17:12.884Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:17:30.827Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:17:42.185Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:17:56.712Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:18:24.049Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Puedes revisar cómo está la integración con telegram de apps/agent? E...\""}
+{"ts":"2026-01-10T22:18:25.030Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:18:34.899Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:18:34.910Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:18:52.620Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:19:45.167Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Mándame markdown para test\n\n## Nueva solicitud:\nMándame markdown para...\""}
+{"ts":"2026-01-10T22:19:46.169Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:20:02.641Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:20:23.282Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Mándame markdown para test\n\nAssistant: klk waxin! 🌿 sile, te mando m...\""}
+{"ts":"2026-01-10T22:20:24.227Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:20:33.603Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:20:43.267Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:20:48.187Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:21:06.348Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T22:23:15.863Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Mándame markdown para test\n\nAssistant: klk waxin! 🌿 sile, te mando m...\""}
+{"ts":"2026-01-10T22:23:16.869Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T22:24:17.243Z","loc":"utils/logger.ts:57","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-10T22:24:34.324Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T23:09:10.037Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Mándame markdown para test\n\nAssistant: klk waxin! 🌿 sile, te mando m...\""}
+{"ts":"2026-01-10T23:09:11.026Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T23:09:34.153Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T23:24:41.123Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Mándame markdown para test\n\nAssistant: klk waxin! 🌿 sile, te mando m...\""}
+{"ts":"2026-01-10T23:24:42.191Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T23:25:16.737Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T23:27:17.640Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nHuman: Mándame markdown para test\n\nAssistant: klk waxin! 🌿 sile, te mando m...\""}
+{"ts":"2026-01-10T23:27:18.687Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T23:28:07.144Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-10T23:35:38.236Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"## Conversación previa:\nAssistant: klk waxin! 🌿 sile, te mando markdown de prueba pa que veas si ah...\""}
+{"ts":"2026-01-10T23:35:39.207Z","loc":"utils/logger.ts:41","level":"INF","src":"AGENT","msg":"Session started: 00355a42-c63f-4790-ae88-1817c5743150"}
+{"ts":"2026-01-10T23:36:05.507Z","loc":"utils/logger.ts:45","level":"INF","src":"AGENT","msg":"Agent completed successfully"}

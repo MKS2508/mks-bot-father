@@ -10,6 +10,7 @@ import {
   fileTransport,
   type LogMetrics,
   type LogLevel,
+  type JsonLogEntry,
   LOG_LEVEL_PRIORITY
 } from '@mks2508/shared-logger'
 
@@ -17,9 +18,9 @@ const consoleLevel: LogLevel = process.env.DEBUG ? 'DBG' : 'INF'
 
 const filteredConsoleTransport = {
   name: 'console-filtered',
-  log(entry: { level: LogLevel; [key: string]: unknown }) {
+  log(entry: JsonLogEntry) {
     if (LOG_LEVEL_PRIORITY[entry.level] >= LOG_LEVEL_PRIORITY[consoleLevel]) {
-      consoleTransport({ colors: true, timestamp: true }).log(entry as any)
+      consoleTransport({ colors: true, timestamp: true }).log(entry)
     }
   }
 }

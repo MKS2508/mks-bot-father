@@ -147,7 +147,10 @@ export class LogFormatter {
   /**
    * Format timestamp with cyan neon color from original
    */
-  private formatTimestamp(ts: string): string {
+  private formatTimestamp(ts?: string): string {
+    if (!ts) {
+      return `${C.dim}--:--:--.---${C.reset}`
+    }
     const timePart = ts.split('T')[1]
     const time = timePart ? timePart.slice(0, 12) : ts.slice(0, 12)
     return `${C.cyanNeon}${time}${C.reset}`

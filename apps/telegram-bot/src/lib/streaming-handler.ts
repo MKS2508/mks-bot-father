@@ -7,6 +7,13 @@
 
 import type { Telegram } from 'telegraf'
 
+export interface IToolProgressStep {
+  percentage: number
+  message: string
+  step?: string
+  timestamp: number
+}
+
 export interface IToolExecution {
   tool: string
   toolId: string
@@ -17,6 +24,7 @@ export interface IToolExecution {
   result?: unknown
   error?: string
   resultSummary?: string
+  progressSteps: IToolProgressStep[]
 }
 
 interface IStreamingState {
@@ -210,72 +218,88 @@ function extractResultContent(result: unknown): string | null {
   return null
 }
 
-function formatToolResult(tool: string, result: unknown, isError: boolean): string {
+function formatToolResult(tool: string, result: unknown, isError: boolean, input?: unknown): string {
   if (isError) {
     const errorMsg = typeof result === 'string' ? result : JSON.stringify(result)
-    const shortError = errorMsg.slice(0, 80)
-    return `→ ❌ ${shortError}${errorMsg.length > 80 ? '...' : ''}`
+    const shortError = errorMsg.slice(0, 60).replace(/\n/g, ' ')
+    return `\n    ❌ ${shortError}${errorMsg.length > 60 ? '...' : ''}`
   }
 
   const toolLower = tool.toLowerCase()
   const content = extractResultContent(result)
+  const inputParams = (input && typeof input === 'object') ? input as Record<string, unknown> : {}
 
-  // Read tool - show line count
+  // Read tool - show line count and file info
   if (toolLower.includes('read')) {
     if (content) {
       const lineCount = content.split('\n').length
-      return `→ ${lineCount} líneas`
+      return `\n    📄 ${lineCount} líneas leídas`
     }
-    return '→ Leído'
+    return ''
   }
 
   // Edit tool - show what was changed
   if (toolLower.includes('edit')) {
-    if (content?.includes('updated') || content?.includes('edited')) {
-      return '→ Modificado ✓'
+    const oldStr = inputParams.old_string as string | undefined
+    const newStr = inputParams.new_string as string | undefined
+
+    if (oldStr && newStr) {
+      const oldPreview = oldStr.slice(0, 30).replace(/\n/g, '↵').trim()
+      const newPreview = newStr.slice(0, 30).replace(/\n/g, '↵').trim()
+      return `\n    📝 "${oldPreview}..." → "${newPreview}..."`
     }
-    return '→ Editado'
+    return '\n    ✓ Editado'
   }
 
-  // Write tool
+  // Write tool - show bytes written
   if (toolLower.includes('write')) {
-    return '→ Escrito ✓'
+    const contentWritten = inputParams.content as string | undefined
+    if (contentWritten) {
+      const lines = contentWritten.split('\n').length
+      return `\n    📝 ${lines} líneas escritas`
+    }
+    return '\n    ✓ Escrito'
   }
 
   // Bash tool - show output preview
   if (toolLower.includes('bash')) {
     if (content) {
-      // Clean and truncate output
-      const cleaned = content.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
-      if (cleaned.length > 0) {
-        const preview = cleaned.slice(0, 40)
-        return `→ ${preview}${cleaned.length > 40 ? '...' : ''}`
+      const lines = content.split('\n').filter(l => l.trim())
+      if (lines.length > 0) {
+        // Show first 2 lines of output
+        const preview = lines.slice(0, 2).map(l => l.slice(0, 60)).join('\n    ')
+        const more = lines.length > 2 ? `\n    ... +${lines.length - 2} líneas` : ''
+        return `\n    ${preview}${more}`
       }
     }
-    return '→ Ejecutado'
+    return '\n    ✓ OK (sin output)'
   }
 
-  // Glob tool - show file count
+  // Glob tool - show files found
   if (toolLower.includes('glob')) {
     if (content) {
-      const lines = content.split('\n').filter(l => l.trim())
-      return `→ ${lines.length} archivos`
+      const files = content.split('\n').filter(l => l.trim())
+      if (files.length > 0) {
+        const preview = files.slice(0, 3).map(f => f.split('/').pop()).join(', ')
+        const more = files.length > 3 ? ` +${files.length - 3} más` : ''
+        return `\n    📁 ${preview}${more}`
+      }
     }
-    if (Array.isArray(result)) {
-      return `→ ${result.length} archivos`
-    }
-    return '→ Búsqueda completada'
+    return '\n    📁 Sin resultados'
   }
 
-  // Grep tool - show match count
+  // Grep tool - show matches
   if (toolLower.includes('grep')) {
     if (content) {
       const lines = content.split('\n').filter(l => l.trim())
       if (lines.length > 0) {
-        return `→ ${lines.length} coincidencias`
+        // Show first match preview
+        const firstMatch = lines[0].slice(0, 60)
+        const more = lines.length > 1 ? `\n    ... +${lines.length - 1} coincidencias` : ''
+        return `\n    🔍 ${firstMatch}${more}`
       }
     }
-    return '→ Sin coincidencias'
+    return '\n    🔍 Sin coincidencias'
   }
 
   // Bot manager
@@ -283,11 +307,19 @@ function formatToolResult(tool: string, result: unknown, isError: boolean): stri
     if (toolLower.includes('create_bot')) {
       const resultStr = String(result)
       const match = resultStr.match(/@(\w+_bot)/)
-      if (match) return `→ Created ${match[1]}`
-      return '→ Bot creado'
+      if (match) return `\n    🤖 Creado: @${match[1]}`
+      return '\n    🤖 Bot creado'
     }
     if (toolLower.includes('list_bots')) {
-      return '→ Listado'
+      if (content) {
+        try {
+          const parsed = JSON.parse(content)
+          if (Array.isArray(parsed)) {
+            return `\n    📋 ${parsed.length} bots encontrados`
+          }
+        } catch { /* ignore */ }
+      }
+      return '\n    📋 Listado'
     }
   }
 
@@ -297,47 +329,64 @@ function formatToolResult(tool: string, result: unknown, isError: boolean): stri
       if (content) {
         try {
           const parsed = JSON.parse(content) as { bots?: unknown[] }
-          if (parsed.bots) {
-            return `→ ${parsed.bots.length} bots`
+          if (parsed.bots && Array.isArray(parsed.bots)) {
+            const botNames = parsed.bots.map((b: any) => b.username || b.name).slice(0, 3)
+            return `\n    📋 ${parsed.bots.length} bots: ${botNames.join(', ')}`
           }
         } catch { /* ignore */ }
       }
-      return '→ Listado'
+      return '\n    📋 Listado'
     }
-    return '→ Completado'
+    return ''
   }
 
   // GitHub tools
   if (toolLower.includes('github')) {
     if (toolLower.includes('create_repo')) {
-      return '→ Repo creado'
+      if (content) {
+        try {
+          const parsed = JSON.parse(content)
+          if (parsed.html_url) {
+            return `\n    📦 ${parsed.html_url}`
+          }
+        } catch { /* ignore */ }
+      }
+      return '\n    📦 Repo creado'
     }
     if (toolLower.includes('commit')) {
-      return '→ Commit realizado'
+      return '\n    ✓ Commit realizado'
     }
   }
 
   // Coolify tools
   if (toolLower.includes('coolify')) {
     if (toolLower.includes('deploy')) {
-      return '→ Desplegado'
+      return '\n    🚀 Deploy iniciado'
     }
     if (toolLower.includes('create_application')) {
-      return '→ App creada'
+      return '\n    🚀 App creada'
     }
   }
 
   // Task tool
   if (toolLower.includes('task')) {
-    return '→ Tarea completada'
+    if (content) {
+      const preview = content.slice(0, 80).replace(/\n/g, ' ')
+      return `\n    📋 ${preview}...`
+    }
+    return ''
   }
 
   // WebSearch
   if (toolLower.includes('websearch')) {
-    return '→ Búsqueda web'
+    if (content) {
+      const preview = content.slice(0, 60).replace(/\n/g, ' ')
+      return `\n    🌐 ${preview}...`
+    }
+    return '\n    🌐 Búsqueda completada'
   }
 
-  return '→ ✓'
+  return ''
 }
 
 export class StreamingHandler {
@@ -386,7 +435,8 @@ export class StreamingHandler {
       tool,
       toolId,
       input,
-      startTime: Date.now()
+      startTime: Date.now(),
+      progressSteps: []
     })
     // Force immediate update for tool events (with rate limiting)
     await this.forceToolUpdate()
@@ -402,10 +452,29 @@ export class StreamingHandler {
       } else {
         exec.result = result
       }
-      exec.resultSummary = formatToolResult(exec.tool, result, isError)
+      exec.resultSummary = formatToolResult(exec.tool, result, isError, exec.input)
     }
     // Force immediate update for tool events (with rate limiting)
     await this.forceToolUpdate()
+  }
+
+  /**
+   * Handle progress updates from MCP tools (internal steps).
+   * This adds progress information to the currently running tool.
+   */
+  async onToolProgress(percentage: number, message: string, step?: string): Promise<void> {
+    // Find the currently running tool (no endTime = still running)
+    const runningTool = this.state.toolExecutions.find(e => !e.endTime)
+    if (runningTool) {
+      runningTool.progressSteps.push({
+        percentage,
+        message,
+        step,
+        timestamp: Date.now()
+      })
+      // Schedule update (don't force - progress updates can be batched)
+      await this.scheduleUpdate()
+    }
   }
 
   /**
@@ -516,107 +585,107 @@ export class StreamingHandler {
 
   private buildStatusText(): string {
     const lines: string[] = []
-    const pendingTool = this.state.toolExecutions.find(e => !e.endTime)
-    const completed = this.state.toolExecutions.filter(e => e.endTime)
+    const allTools = this.state.toolExecutions
 
-    // Header
-    lines.push('⚡ <b>Progreso en vivo</b>')
+    // Header with stats
+    const completedCount = allTools.filter(e => e.endTime).length
+    const totalDuration = this.getTotalDuration()
+
+    if (completedCount > 0) {
+      lines.push(`⚡ <b>Progreso</b> — ${completedCount} tools | ${formatDuration(totalDuration)}`)
+    } else {
+      lines.push('⚡ <b>Progreso</b>')
+    }
     lines.push('')
 
-    // Real thinking text (if streaming)
-    if (this.state.streamedThinking && !pendingTool) {
-      const thinkingPreview = this.state.streamedThinking.slice(-150).trim()
-      if (thinkingPreview) {
-        lines.push(`🧠 <i>${escapeHtml(thinkingPreview)}</i>`)
-        lines.push('')
-      }
-    }
+    // Build log-style output: show ALL tools in order (completed + pending)
+    for (const exec of allTools) {
+      const isCompleted = !!exec.endTime
+      const duration = exec.duration ? formatDuration(exec.duration) : ''
+      const inputDetails = formatToolInput(exec.tool, exec.input)
+      const toolIcon = getToolIcon(exec.tool)
+      const toolName = truncateToolName(exec.tool)
 
-    // Streamed text preview (if not executing a tool)
-    if (this.state.streamedText && !pendingTool) {
-      const textPreview = this.state.streamedText.slice(-200).trim()
-      if (textPreview) {
-        lines.push(`💬 ${escapeHtml(textPreview)}`)
-        lines.push('')
-      }
-    }
-
-    // Current tool being executed
-    if (pendingTool) {
-      lines.push('🔄 <b>Ejecutando ahora:</b>')
-
-      const elapsed = Date.now() - pendingTool.startTime
-      const inputDetails = formatToolInput(pendingTool.tool, pendingTool.input)
-
-      if (inputDetails) {
-        lines.push(`  ⏳ ${inputDetails} — ${formatDuration(elapsed)}`)
-      } else {
-        const icon = getToolIcon(pendingTool.tool)
-        const toolName = truncateToolName(pendingTool.tool)
-        lines.push(`  ⏳ ${icon} ${toolName} — ${formatDuration(elapsed)}`)
-      }
-      lines.push('')
-    }
-
-    // Completed tools - show recent history
-    if (completed.length > 0) {
-      const totalCount = this.state.toolExecutions.length
-      const completedCount = completed.length
-
-      lines.push(`📊 <b>Historial (${completedCount} de ${totalCount} tools):</b>`)
-
-      // Show last N tools
-      const recentTools = completed.slice(-MAX_TOOL_HISTORY)
-      for (const exec of recentTools) {
-        const icon = exec.error ? '❌' : '✅'
-        const duration = exec.duration ? formatDuration(exec.duration) : '?'
-        const inputDetails = formatToolInput(exec.tool, exec.input)
+      if (isCompleted) {
+        // Completed tool - show result
+        const statusIcon = exec.error ? '❌' : '✅'
         const resultSummary = exec.resultSummary || ''
 
         if (inputDetails) {
-          lines.push(`  ${icon} ${inputDetails} ${resultSummary} <code>(${duration})</code>`)
+          lines.push(`${statusIcon} ${inputDetails} ${resultSummary} <code>${duration}</code>`)
         } else {
-          const toolIcon = getToolIcon(exec.tool)
-          const toolName = truncateToolName(exec.tool)
-          lines.push(`  ${icon} ${toolIcon} ${toolName} ${resultSummary} <code>(${duration})</code>`)
+          lines.push(`${statusIcon} ${toolIcon} ${toolName} ${resultSummary} <code>${duration}</code>`)
+        }
+      } else {
+        // Pending tool - show elapsed time and progress steps
+        const elapsed = Date.now() - exec.startTime
+
+        if (inputDetails) {
+          lines.push(`⏳ ${inputDetails} <i>${formatDuration(elapsed)}...</i>`)
+        } else {
+          lines.push(`⏳ ${toolIcon} ${toolName} <i>${formatDuration(elapsed)}...</i>`)
+        }
+
+        // Show progress steps for running tools (last 2 steps max)
+        if (exec.progressSteps.length > 0) {
+          const recentSteps = exec.progressSteps.slice(-2)
+          for (const step of recentSteps) {
+            const pctStr = step.percentage ? `${step.percentage}%` : ''
+            const stepMsg = step.message.slice(0, 50)
+            lines.push(`    ↳ ${pctStr} ${escapeHtml(stepMsg)}`)
+          }
         }
       }
-
-      // Show count if more tools were executed
-      if (completed.length > MAX_TOOL_HISTORY) {
-        const hidden = completed.length - MAX_TOOL_HISTORY
-        lines.push(`  <i>... y ${hidden} más</i>`)
-      }
-
-      lines.push('')
-
-      // Total time
-      const totalDuration = this.getTotalDuration()
-      lines.push(`⏱️ <b>Tiempo total:</b> ${formatDuration(totalDuration)}`)
-    } else if (!pendingTool && !this.state.streamedText && !this.state.streamedThinking) {
-      // Show generic status only if no content
-      lines.push('⚡ <i>Procesando...</i>')
     }
 
-    // Truncate from the beginning if too long
+    // If no tools yet, show thinking or generic status
+    if (allTools.length === 0) {
+      if (this.state.streamedThinking) {
+        const thinkingPreview = this.state.streamedThinking.slice(-100).trim()
+        if (thinkingPreview) {
+          lines.push(`🧠 <i>${escapeHtml(thinkingPreview)}...</i>`)
+        }
+      } else if (this.state.streamedText) {
+        const textPreview = this.state.streamedText.slice(-150).trim()
+        if (textPreview) {
+          lines.push(`💬 ${escapeHtml(textPreview)}`)
+        }
+      } else {
+        lines.push('<i>Procesando...</i>')
+      }
+    }
+
+    // Truncate from the BEGINNING if too long (keep most recent)
     let statusText = lines.join('\n')
     if (statusText.length > MAX_MESSAGE_LENGTH) {
-      let truncatedLines = lines
-      while (truncatedLines.length > 3 && truncatedLines.join('\n').length > MAX_MESSAGE_LENGTH) {
-        truncatedLines = truncatedLines.slice(1)
+      // Keep header + truncate old tools from the beginning
+      const header = lines[0]
+      let contentLines = lines.slice(2) // Skip header and empty line
+
+      while (contentLines.length > 1 && (header + '\n\n' + contentLines.join('\n')).length > MAX_MESSAGE_LENGTH - 20) {
+        contentLines = contentLines.slice(1)
       }
-      statusText = '<i>...</i>\n' + truncatedLines.join('\n')
+
+      statusText = header + '\n\n<i>... (truncado)</i>\n' + contentLines.join('\n')
     }
 
     return statusText
   }
 
-  async finish(): Promise<void> {
-    // Clear any pending timeout
+  /**
+   * Clean up resources (clear timeouts) without updating the message.
+   * Use this when you plan to delete the status message afterwards.
+   */
+  cleanup(): void {
     if (this.updateTimeout) {
       clearTimeout(this.updateTimeout)
       this.updateTimeout = null
     }
+  }
+
+  async finish(): Promise<void> {
+    // Clear any pending timeout
+    this.cleanup()
 
     // Update status message with final summary - retry 3 times
     if (this.state.statusMessageId) {
@@ -709,5 +778,34 @@ export class StreamingHandler {
     return this.state.toolExecutions
       .filter(e => e.duration)
       .reduce((sum, e) => sum + (e.duration || 0), 0)
+  }
+
+  /**
+   * Delete the status message to clean up after execution.
+   * Called after sending the final response to avoid confusion.
+   */
+  async deleteStatusMessage(): Promise<boolean> {
+    if (!this.state.statusMessageId) {
+      return false
+    }
+
+    try {
+      await this.telegram.deleteMessage(
+        this.state.chatId,
+        this.state.statusMessageId
+      )
+      this.state.statusMessageId = undefined
+      return true
+    } catch {
+      // Ignore deletion errors - message might already be deleted
+      return false
+    }
+  }
+
+  /**
+   * Get the status message ID (for external use if needed).
+   */
+  getStatusMessageId(): number | undefined {
+    return this.state.statusMessageId
   }
 }

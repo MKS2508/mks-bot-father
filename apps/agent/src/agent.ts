@@ -253,6 +253,12 @@ export async function runAgent(
 
   const durationMs = Date.now() - startTime
 
+  // Check if any telegram-messenger tools were used
+  const telegramMessageSent = toolCalls.some(tc =>
+    tc.tool.startsWith('mcp__telegram-messenger__send_') ||
+    tc.tool === 'mcp__telegram-messenger__ask_user_question'
+  )
+
   return {
     success: errors.length === 0 && finalResult !== null,
     result: finalResult,
@@ -261,7 +267,8 @@ export async function runAgent(
     errors,
     permissionDenials,
     usage,
-    durationMs
+    durationMs,
+    telegramMessageSent
   }
 }
 

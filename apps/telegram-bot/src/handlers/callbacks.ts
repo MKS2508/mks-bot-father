@@ -36,10 +36,30 @@ export async function handleCallback(ctx: Context): Promise<void> {
 
   try {
     // Check for ask_user_question callbacks first (format: ask_xxx:value)
+    callbackLogger.debug(
+      `${badge('ASK_CHECK', 'rounded')} ${kv({
+        data,
+        isAskFormat: data.startsWith('ask_') ? 'yes' : 'no',
+        pendingCount: telegramMessengerService.getPendingCallbacksCount(),
+        pendingIds: telegramMessengerService.getPendingCallbackIds().join(',') || 'none'
+      })}`
+    )
+
     if (telegramMessengerService.hasPendingCallback(data)) {
+      callbackLogger.info(
+        `${badge('ASK_FOUND', 'rounded')} ${kv({
+          data,
+          processing: 'yes'
+        })}`
+      )
+
+      // CRITICAL: Answer Telegram FIRST (within 5s) to remove loading spinner
+      await ctx.answerCbQuery('✓')
+
+      // THEN process the callback (can take longer)
       const processed = telegramMessengerService.processPendingCallback(data)
       if (processed) {
-        await ctx.answerCbQuery('Response recorded')
+        callbackLogger.success(`AskUserQuestion callback processed: ${data}`)
         // Delete the question message
         try {
           await ctx.deleteMessage()
@@ -47,7 +67,11 @@ export async function handleCallback(ctx: Context): Promise<void> {
           // Ignore delete errors
         }
         return
+      } else {
+        callbackLogger.warn(`AskUserQuestion callback NOT processed: ${data}`)
       }
+    } else {
+      callbackLogger.debug(`Not an AskUserQuestion callback or not pending: ${data}`)
     }
 
     switch (action) {

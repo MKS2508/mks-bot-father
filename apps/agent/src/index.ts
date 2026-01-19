@@ -45,6 +45,10 @@ export type {
   IBuildMessageOptions
 } from './services/telegram-service.js'
 
+// Progress emitter for real-time MCP tool progress
+export { progressEmitter } from './services/progress-emitter.js'
+export type { IToolProgressEvent } from './services/progress-emitter.js'
+
 // Subagents
 export { subagents } from './subagents/index.js'
 export type { AgentDefinition } from './subagents/index.js'

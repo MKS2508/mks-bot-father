@@ -237,3 +237,68 @@ Usuario pide app → Scaffold → GitHub → Coolify → Bot (si aplica)
 ```
 
 Y **mejorarte a ti mismo** cuando descubras bugs o limitaciones.
+
+---
+
+## Telegram Communication Protocol
+
+**CRITICAL**: Cuando estas ejecutandote desde el bot de Telegram:
+
+### Regla de oro: NO duplicar respuestas
+
+**NUNCA hagas ambas cosas:**
+- ❌ Usar `mcp__telegram-messenger__send_message` Y LUEGO escribir texto de respuesta
+- ❌ Esto causa mensajes duplicados al usuario
+
+**SIEMPRE elige UNA de estas opciones:**
+
+1. **Opcion A: Usar Telegram tools** (recomendado para respuestas formateadas)
+   ```
+   - Llamar a send_message / ask_user_question / etc.
+   - NO escribir texto adicional despues
+   - El tool YA envio el mensaje al usuario
+   ```
+
+2. **Opcion B: Responder solo con texto** (para respuestas cortas informales)
+   ```
+   - NO usar send_message
+   - Escribir respuesta directamente
+   - El bot la enviara automaticamente
+   ```
+
+### Cuando usar cada opcion
+
+| Situacion | Usar | Razon |
+|-----------|------|-------|
+| Respuesta con formato (secciones, code blocks) | Telegram tools | Mejor presentacion |
+| Respuesta corta informal ("sile waxo") | Solo texto | Mas rapido |
+| Necesitas botones (inline keyboard) | Telegram tools | Solo asi funcionan |
+| Pregunta con opciones | ask_user_question | Interactividad |
+| Operacion larga (deploy, build) | update_progress | Feedback visual |
+| Resultado de tool (exito/error) | format_tool_result + send_message | Consistencia |
+
+### Ejemplos correctos
+
+**✅ Correcto - Solo tool:**
+```typescript
+// Usuario: "despliega mi-bot"
+send_message({
+  target: chatId,
+  message: { text: "<b>Deploy iniciado...</b>", parse_mode: "html" }
+})
+// NO escribir texto despues - ya se envio
+```
+
+**✅ Correcto - Solo texto:**
+```typescript
+// Usuario: "klk"
+// Respuesta directa: "klk waxo, que quieres hacer hoy?"
+// NO usar send_message
+```
+
+**❌ Incorrecto - Duplicado:**
+```typescript
+send_message({ ... })
+// Y luego escribir: "redi waxo, deploy iniciado"
+// Resultado: 2 mensajes al usuario
+```

@@ -1,9 +1,13 @@
 /**
  * Logging middleware and utilities.
  * Using @mks2508/better-logger directly.
+ * Optionally sends logs to Telegram channel via LogViewer.
  */
 
 import logger from '@mks2508/better-logger'
+import { logToTelegram, sendLogMessage, isTelegramLoggingEnabled } from '../lib/telegram-logger.js'
+
+type LogLevel = 'info' | 'success' | 'error' | 'warn' | 'debug'
 
 // Setup logger preset for bot usage
 logger.preset('cyberpunk')
@@ -47,7 +51,6 @@ export const colors = {
   success: '\x1b[32m',
   warning: '\x1b[33m',
   info: '\x1b[36m',
-  dim: '\x1b[90m',
 } as const
 
 export function colorText(text: string, color: string): string {
@@ -68,4 +71,56 @@ export function kv(obj: Record<string, string | number | undefined>): string {
       return `${coloredKey}=${coloredValue}`
     })
   return entries.join(' ')
+}
+
+/**
+ * Log to both console and Telegram channel (if configured).
+ * Use this for important operational logs that should be visible remotely.
+ */
+export function logWithTelegram(
+  level: LogLevel,
+  message: string,
+  data?: Record<string, unknown>
+): void {
+  // Log to console
+  switch (level) {
+    case 'info':
+      botLogger.info(message, data)
+      break
+    case 'success':
+      botLogger.success(message, data)
+      break
+    case 'error':
+      botLogger.error(message, data)
+      break
+    case 'warn':
+      botLogger.warn(message, data)
+      break
+    case 'debug':
+      botLogger.debug(message, data)
+      break
+  }
+
+  // Also log to Telegram channel if configured
+  if (isTelegramLoggingEnabled()) {
+    logToTelegram(level, message, data)
+  }
+}
+
+/**
+ * Send an immediate log message to Telegram (bypasses buffer).
+ * Use sparingly for critical messages that need immediate visibility.
+ */
+export async function logToTelegramImmediate(
+  level: LogLevel,
+  message: string,
+  data?: Record<string, unknown>
+): Promise<void> {
+  // Log to console first
+  logWithTelegram(level, message, data)
+
+  // Send immediately to Telegram
+  if (isTelegramLoggingEnabled()) {
+    await sendLogMessage(level, message, data)
+  }
 }

@@ -56,6 +56,8 @@ export interface AgentResult {
   permissionDenials: PermissionDenial[]
   usage: AgentUsage
   durationMs: number
+  // Flag to prevent duplicate messages when telegram tools were used
+  telegramMessageSent?: boolean
 }
 
 export interface AgentOptions {

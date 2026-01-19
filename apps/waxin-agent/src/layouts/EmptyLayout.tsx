@@ -18,6 +18,10 @@ interface EmptyLayoutProps {
   isDialogOpen?: boolean
   showHeader?: boolean
   waxinText?: string
+  /** Real-time thinking text from agent */
+  streamedThinking?: string
+  /** Real-time streamed text from agent */
+  streamedText?: string
 }
 
 const CyberDivider = ({ variant = 'default' }: { variant?: 'default' | 'glow' | 'subtle' }) => {
@@ -44,6 +48,8 @@ export function EmptyLayout({
   isDialogOpen = false,
   showHeader = true,
   waxinText = 'WAXIN MK1 😈',
+  streamedThinking = '',
+  streamedText = '',
 }: EmptyLayoutProps) {
   return (
     <>
@@ -80,7 +86,11 @@ export function EmptyLayout({
         {/* Thinking Indicator - shows in empty layout too */}
         {isExecuting && (
           <box style={{ marginTop: 1 }}>
-            <ThinkingIndicator isStreaming={isStreaming} />
+            <ThinkingIndicator
+              isStreaming={isStreaming}
+              thinkingText={streamedThinking}
+              streamedText={streamedText}
+            />
           </box>
         )}
       </box>

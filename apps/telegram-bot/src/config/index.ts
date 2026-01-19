@@ -2,7 +2,7 @@
  * Configuration management.
  */
 
-import { loadEnvConfig, type EnvConfig } from './env.js'
+import { loadEnvConfig } from './env.js'
 import type { BotConfig } from '../types/bot.js'
 import { EnvKeys } from '../types/constants.js'
 

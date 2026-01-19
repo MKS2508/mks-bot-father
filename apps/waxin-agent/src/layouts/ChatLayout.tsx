@@ -23,6 +23,10 @@ interface ChatLayoutProps {
   waxinText?: string
   isDialogOpen?: boolean
   toolExecutions?: ToolExecution[]
+  /** Real-time thinking text from agent */
+  streamedThinking?: string
+  /** Real-time streamed text from agent */
+  streamedText?: string
 }
 
 export function ChatLayout({
@@ -35,6 +39,8 @@ export function ChatLayout({
   waxinText = 'WAXIN MK1 😈',
   isDialogOpen = false,
   toolExecutions = [],
+  streamedThinking = '',
+  streamedText = '',
 }: ChatLayoutProps) {
   return (
     <>
@@ -54,9 +60,13 @@ export function ChatLayout({
         <MessageList messages={messages} isExecuting={isExecuting} toolExecutions={toolExecutions} />
       </box>
 
-      {/* Thinking Indicator - animated spinner with personality words */}
+      {/* Thinking Indicator - animated spinner with personality words + real text */}
       {isExecuting && (
-        <ThinkingIndicator isStreaming={isStreaming} />
+        <ThinkingIndicator
+          isStreaming={isStreaming}
+          thinkingText={streamedThinking}
+          streamedText={streamedText}
+        />
       )}
 
       {/* Status Bar */}

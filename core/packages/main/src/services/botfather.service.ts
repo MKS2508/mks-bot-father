@@ -278,9 +278,13 @@ export class BotFatherService {
   /**
    * Gets all bots with their tokens.
    *
+   * @param options - Optional configuration
+   * @param options.onProgress - Callback for progress updates
    * @returns Result with bots and tokens or error
    */
-  async getAllBotsWithTokens(): Promise<
+  async getAllBotsWithTokens(options?: {
+    onProgress?: (message: string) => void
+  }): Promise<
     Result<Array<{ username: string; token: string }>, ResultError<typeof AppErrorCode.BOTFATHER_ERROR>>
   > {
     const startTime = Date.now()
@@ -298,7 +302,9 @@ export class BotFatherService {
     fileLog.info('BOTFATHER', 'Getting all bots with tokens')
 
     const result = await tryCatchAsync(async () => {
-      const botsWithTokens = await this.botFatherManager!.getAllBotsWithTokens()
+      const botsWithTokens = await this.botFatherManager!.getAllBotsWithTokens({
+        onProgress: options?.onProgress
+      })
       const bots = botsWithTokens.map((bot: { username: string; token: string }) => ({
         username: bot.username,
         token: bot.token,
@@ -453,6 +459,145 @@ export class BotFatherService {
 
     if (isErr(result)) {
       fileLog.error('BOTFATHER', 'Failed to set bot about text', {
+        botUsername,
+        error: result.error.message,
+        duration_ms: Date.now() - startTime
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Gets bot info by username.
+   *
+   * @param botUsername - Bot username (with or without @)
+   * @returns Result with bot info or error
+   */
+  async getBotInfo(
+    botUsername: string
+  ): Promise<Result<{ username: string; name?: string; description?: string; about?: string }, ResultError<typeof AppErrorCode.BOTFATHER_ERROR>>> {
+    const startTime = Date.now()
+    if (!this.botFatherManager) {
+      fileLog.error('BOTFATHER', 'BotFather service not initialized', {
+        reason: 'not_initialized',
+        duration_ms: Date.now() - startTime
+      })
+      return err({
+        code: AppErrorCode.BOTFATHER_ERROR,
+        message: 'BotFather service not initialized. Call init() first.',
+      })
+    }
+
+    fileLog.info('BOTFATHER', 'Getting bot info', { botUsername })
+
+    const result = await tryCatchAsync(async () => {
+      const info = await this.botFatherManager!.getBotInfo(botUsername)
+      if (!info.success) {
+        throw new Error(info.error || 'Failed to get bot info')
+      }
+      fileLog.info('BOTFATHER', 'Bot info retrieved', {
+        botUsername,
+        duration_ms: Date.now() - startTime
+      })
+      return info.bot!
+    }, AppErrorCode.BOTFATHER_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('BOTFATHER', 'Failed to get bot info', {
+        botUsername,
+        error: result.error.message,
+        duration_ms: Date.now() - startTime
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Sets bot display name.
+   *
+   * @param botUsername - Bot username
+   * @param name - New display name
+   * @returns Result indicating success or error
+   */
+  async setName(
+    botUsername: string,
+    name: string
+  ): Promise<Result<void, ResultError<typeof AppErrorCode.BOTFATHER_ERROR>>> {
+    const startTime = Date.now()
+    if (!this.botFatherManager) {
+      fileLog.error('BOTFATHER', 'BotFather service not initialized', {
+        reason: 'not_initialized',
+        duration_ms: Date.now() - startTime
+      })
+      return err({
+        code: AppErrorCode.BOTFATHER_ERROR,
+        message: 'BotFather service not initialized. Call init() first.',
+      })
+    }
+
+    fileLog.info('BOTFATHER', 'Setting bot name', { botUsername, name })
+
+    const result = await tryCatchAsync(async () => {
+      const response = await this.botFatherManager!.setName(botUsername, name)
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to set bot name')
+      }
+      log.success(`Name set for @${botUsername}`)
+      fileLog.info('BOTFATHER', 'Bot name set', {
+        botUsername,
+        name,
+        duration_ms: Date.now() - startTime
+      })
+    }, AppErrorCode.BOTFATHER_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('BOTFATHER', 'Failed to set bot name', {
+        botUsername,
+        error: result.error.message,
+        duration_ms: Date.now() - startTime
+      })
+    }
+
+    return result
+  }
+
+  /**
+   * Checks if a username is available.
+   *
+   * @param botUsername - Username to check (with or without @)
+   * @returns Result with availability status
+   */
+  async checkUsernameAvailable(
+    botUsername: string
+  ): Promise<Result<boolean, ResultError<typeof AppErrorCode.BOTFATHER_ERROR>>> {
+    const startTime = Date.now()
+    if (!this.botFatherManager) {
+      fileLog.error('BOTFATHER', 'BotFather service not initialized', {
+        reason: 'not_initialized',
+        duration_ms: Date.now() - startTime
+      })
+      return err({
+        code: AppErrorCode.BOTFATHER_ERROR,
+        message: 'BotFather service not initialized. Call init() first.',
+      })
+    }
+
+    fileLog.info('BOTFATHER', 'Checking username availability', { botUsername })
+
+    const result = await tryCatchAsync(async () => {
+      const available = await this.botFatherManager!.checkUsernameAvailable(botUsername)
+      fileLog.info('BOTFATHER', 'Username availability checked', {
+        botUsername,
+        available,
+        duration_ms: Date.now() - startTime
+      })
+      return available
+    }, AppErrorCode.BOTFATHER_ERROR)
+
+    if (isErr(result)) {
+      fileLog.error('BOTFATHER', 'Failed to check username availability', {
         botUsername,
         error: result.error.message,
         duration_ms: Date.now() - startTime

@@ -56,7 +56,6 @@ export class LogPanelWidget extends Box {
    * Update log entries
    */
   setEntries(entries: JsonLogEntry[]): void {
-    console.error('[DEBUG] LogPanel.setEntries - entries:', entries.length)
     this.entries = entries
     this.selectedIndex = -1
     this.renderContent()
@@ -104,7 +103,6 @@ export class LogPanelWidget extends Box {
    * Render all entries
    */
   private renderContent(): void {
-    console.error('[DEBUG] LogPanel.renderContent - entries:', this.entries.length)
     const lines = this.entries.map((entry, index) => {
       const formatted = this.formatter.formatEntry(entry, index + 1)
       if (index === this.selectedIndex) {
@@ -113,11 +111,8 @@ export class LogPanelWidget extends Box {
       return formatted.text
     })
 
-    console.error('[DEBUG] LogPanel.renderContent - formatted lines:', lines.length)
     this.setContent(lines.join('\n'))
-    console.error('[DEBUG] LogPanel.renderContent - content set')
     this.screen?.render()
-    console.error('[DEBUG] LogPanel.renderContent - rendered')
   }
 
   /**

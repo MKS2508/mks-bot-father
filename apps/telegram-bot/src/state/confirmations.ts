@@ -5,6 +5,12 @@ import type { Context, Telegraf } from 'telegraf'
 import type { IPendingConfirmation, DangerousOperation } from '../types/agent.js'
 import { confirmationKeyboard } from '../keyboards.js'
 import { botLogger } from '../middleware/logging.js'
+import {
+  buildConfirmationMessage,
+  buildConfirmationResultMessage,
+  buildExpirationMessage
+} from '../utils/formatters.js'
+import { sendMessage } from '../lib/message-helper.js'
 
 /** Confirmation timeout in milliseconds (60 seconds) */
 const CONFIRMATION_TIMEOUT = 60_000
@@ -45,48 +51,6 @@ export function requiresConfirmation(prompt: string): DangerousOperation | null 
   return null
 }
 
-/** Get warning message for operation */
-function getOperationWarning(operation: DangerousOperation, prompt: string): string {
-  const promptPreview = prompt.length > 100 ? prompt.slice(0, 97) + '...' : prompt
-
-  const warnings: Record<DangerousOperation, string> = {
-    create_bot:
-      `⚠️ *Confirm Bot Creation*\n\n` +
-      `You're about to create a new Telegram bot.\n\n` +
-      `_"${promptPreview}"_\n\n` +
-      `This will:\n` +
-      `• Connect to @BotFather\n` +
-      `• Create a new bot\n` +
-      `• Generate a bot token\n\n` +
-      `⏰ _Expires in 60 seconds_`,
-
-    create_repo:
-      `⚠️ *Confirm Repository Creation*\n\n` +
-      `You're about to create a new GitHub repository.\n\n` +
-      `_"${promptPreview}"_\n\n` +
-      `⏰ _Expires in 60 seconds_`,
-
-    deploy:
-      `⚠️ *Confirm Deployment*\n\n` +
-      `You're about to deploy to Coolify.\n\n` +
-      `_"${promptPreview}"_\n\n` +
-      `⏰ _Expires in 60 seconds_`,
-
-    commit_push:
-      `⚠️ *Confirm Push*\n\n` +
-      `You're about to commit and push changes to GitHub.\n\n` +
-      `_"${promptPreview}"_\n\n` +
-      `⏰ _Expires in 60 seconds_`,
-
-    delete_bot:
-      `🚨 *Confirm Deletion*\n\n` +
-      `⚠️ This action is irreversible!\n\n` +
-      `_"${promptPreview}"_\n\n` +
-      `⏰ _Expires in 60 seconds_`
-  }
-
-  return warnings[operation]
-}
 
 /** Create confirmation dialog */
 export async function createConfirmation(
@@ -99,10 +63,9 @@ export async function createConfirmation(
   const userId = ctx.from!.id.toString()
   const chatId = ctx.chat!.id
 
-  const warningMessage = getOperationWarning(operation, prompt)
-  const message = await ctx.reply(warningMessage, {
-    parse_mode: 'Markdown',
-    ...confirmationKeyboard(id)
+  const warningMessage = buildConfirmationMessage(operation, prompt)
+  const messageId = await sendMessage(ctx, warningMessage, {
+    keyboard: confirmationKeyboard(id).reply_markup
   })
 
   const expiresAt = new Date(Date.now() + CONFIRMATION_TIMEOUT)
@@ -114,7 +77,7 @@ export async function createConfirmation(
   const confirmation: IPendingConfirmation = {
     id,
     chatId,
-    messageId: message.message_id,
+    messageId: messageId ?? 0,
     userId,
     operation,
     operationData,
@@ -155,9 +118,8 @@ export async function processConfirmation(
 
   if (confirmed) {
     await ctx.answerCbQuery('✅ Confirmed!')
-    await ctx.editMessageText(`✅ *Confirmed*\n\nExecuting: _"${confirmation.prompt}"_`, {
-      parse_mode: 'Markdown'
-    })
+    const msg = buildConfirmationResultMessage(true, confirmation.prompt)
+    await ctx.editMessageText(msg.text || '', { parse_mode: 'HTML' })
     return {
       confirmed: true,
       prompt: confirmation.prompt,
@@ -165,9 +127,8 @@ export async function processConfirmation(
     }
   } else {
     await ctx.answerCbQuery('❌ Cancelled')
-    await ctx.editMessageText(`❌ *Cancelled*\n\n_"${confirmation.prompt}"_`, {
-      parse_mode: 'Markdown'
-    })
+    const msg = buildConfirmationResultMessage(false, confirmation.prompt)
+    await ctx.editMessageText(msg.text || '', { parse_mode: 'HTML' })
     return { confirmed: false }
   }
 }
@@ -186,12 +147,13 @@ async function expireConfirmation(chatId: number, confirmationId: string): Promi
   }
 
   try {
+    const msg = buildExpirationMessage(confirmation.prompt)
     await botInstance.telegram.editMessageText(
       chatId,
       confirmation.messageId,
       undefined,
-      `⌛ *Confirmation Expired*\n\n_"${confirmation.prompt}"_\n\nPlease try again.`,
-      { parse_mode: 'Markdown' }
+      msg.text || '',
+      { parse_mode: 'HTML' }
     )
   } catch (error) {
     botLogger.debug(`Failed to update expired confirmation: ${error}`)

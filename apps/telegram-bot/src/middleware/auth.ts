@@ -5,6 +5,7 @@
 import type { Context, Middleware } from 'telegraf'
 import { botLogger, badge, kv, colors, colorText } from './logging.js'
 import { botManager } from '../utils/bot-manager.js'
+import { isErr } from '../types/result.js'
 
 export function auth(): Middleware<Context> {
   return async (ctx, next) => {
@@ -20,7 +21,7 @@ export function auth(): Middleware<Context> {
 
     const authResult = botManager.authorize(ctx.from.id)
 
-    if (!authResult.ok) {
+    if (isErr(authResult)) {
       botLogger.warn(
         `${badge('AUTH', 'rounded')} ${kv({
           status: colorText('DENIED', colors.error),

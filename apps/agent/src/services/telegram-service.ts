@@ -330,8 +330,21 @@ class TelegramMessengerService {
     const keyboard = this.buildKeyboard(keyboardRows)
     const sendResult = await this.sendMessage(target, message, { keyboard })
 
+    this.log.info(`askUserQuestion: Creating pending callback`, {
+      callbackId,
+      chatId: sendResult.chatId,
+      messageId: sendResult.messageId,
+      timeoutSeconds,
+      buttonsCount: buttons.length
+    })
+
     return new Promise<IUserResponse>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
+        this.log.info(`askUserQuestion: Timeout reached`, {
+          callbackId,
+          timeoutSeconds,
+          pendingCount: this.pendingCallbacks.size
+        })
         this.pendingCallbacks.delete(callbackId)
         this.deleteMessage(sendResult.chatId, sendResult.messageId).catch(() => {})
         reject(new Error(`Question timed out after ${timeoutSeconds} seconds`))
@@ -345,21 +358,51 @@ class TelegramMessengerService {
         timeoutId,
         createdAt: Date.now()
       })
+
+      this.log.info(`askUserQuestion: Callback registered`, {
+        callbackId,
+        pendingCount: this.pendingCallbacks.size,
+        allIds: [...this.pendingCallbacks.keys()]
+      })
     })
   }
 
   processPendingCallback(callbackData: string): boolean {
     const parts = callbackData.split(':')
-    if (parts.length < 2) return false
+    if (parts.length < 2) {
+      this.log.info(`processPendingCallback: Invalid callback data format`, { callbackData })
+      return false
+    }
 
     const callbackId = parts[0]
     const value = parts.slice(1).join(':')
 
+    this.log.info(`processPendingCallback: Processing`, {
+      callbackData,
+      callbackId,
+      value,
+      pendingCount: this.pendingCallbacks.size,
+      allIds: [...this.pendingCallbacks.keys()]
+    })
+
     const pending = this.pendingCallbacks.get(callbackId)
-    if (!pending) return false
+    if (!pending) {
+      this.log.info(`processPendingCallback: Callback not found in pending map`, {
+        callbackId,
+        pendingCount: this.pendingCallbacks.size,
+        allIds: [...this.pendingCallbacks.keys()]
+      })
+      return false
+    }
 
     clearTimeout(pending.timeoutId)
     this.pendingCallbacks.delete(callbackId)
+
+    this.log.info(`processPendingCallback: Resolving callback`, {
+      callbackId,
+      value,
+      remainingPending: this.pendingCallbacks.size
+    })
 
     pending.resolve({
       buttonText: '',
@@ -373,7 +416,24 @@ class TelegramMessengerService {
   hasPendingCallback(callbackData: string): boolean {
     const parts = callbackData.split(':')
     if (parts.length < 2) return false
-    return this.pendingCallbacks.has(parts[0])
+    const callbackId = parts[0]
+    const exists = this.pendingCallbacks.has(callbackId)
+    this.log.info(`hasPendingCallback check`, {
+      callbackData,
+      callbackId,
+      exists,
+      pendingCount: this.pendingCallbacks.size,
+      pendingIds: [...this.pendingCallbacks.keys()]
+    })
+    return exists
+  }
+
+  getPendingCallbacksCount(): number {
+    return this.pendingCallbacks.size
+  }
+
+  getPendingCallbackIds(): string[] {
+    return [...this.pendingCallbacks.keys()]
   }
 
   private parseTarget(target: IChatTarget): { chatId: number; threadId?: number } {

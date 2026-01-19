@@ -83,14 +83,13 @@ bot.catch((err, ctx) => {
 
 logger.info('Starting Telegram bot...')
 
-bot.launch()
-  .then(() => {
-    logger.success('Telegram bot started successfully!')
-  })
-  .catch((err) => {
-    logger.error(`Failed to start bot: ${err}`)
-    process.exit(1)
-  })
+// launch() returns a Promise that resolves when bot STOPS, not when it starts
+bot.launch().catch((err) => {
+  logger.error(`Failed to start bot: ${err}`)
+  process.exit(1)
+})
+
+logger.success('Telegram bot started successfully!')
 
 process.once('SIGINT', () => bot.stop('SIGINT'))
 process.once('SIGTERM', () => bot.stop('SIGTERM'))

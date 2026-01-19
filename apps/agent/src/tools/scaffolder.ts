@@ -253,7 +253,7 @@ Use this after scaffold_project to ensure the project is ready.`,
           }
 
           const runStep = async (
-            stepName: string,
+            _stepName: string,
             command: string,
             parseOutput?: (stdout: string, stderr: string) => Partial<IValidationStepResult>
           ): Promise<IValidationStepResult> => {

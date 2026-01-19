@@ -4,7 +4,6 @@
 
 import { FileLogHandler, addHandler } from '@mks2508/better-logger'
 import { botLogger } from '../middleware/logging.js'
-import { getConfig } from './index.js'
 import { mkdirSync, existsSync } from 'fs'
 import path from 'path'
 

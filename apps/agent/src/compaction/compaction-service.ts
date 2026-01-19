@@ -191,7 +191,7 @@ class CompactionServiceClass {
 
   async compactMessages(
     messages: Message[],
-    trigger: CompactTrigger = 'manual'
+    _trigger: CompactTrigger = 'manual'
   ): Promise<{
     success: boolean
     summary: string

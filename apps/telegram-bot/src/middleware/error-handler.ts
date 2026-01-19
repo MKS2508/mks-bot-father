@@ -5,6 +5,8 @@
 import type { Context, Middleware } from 'telegraf'
 import { botManager } from '../utils/bot-manager.js'
 import { botLogger, badge, kv, colors, colorText } from './logging.js'
+import { buildErrorMessage } from '../utils/formatters.js'
+import { sendMessage } from '../lib/message-helper.js'
 
 export function errorHandler<T extends Context>(): Middleware<T> {
   return async (ctx, next) => {
@@ -24,10 +26,8 @@ export function errorHandler<T extends Context>(): Middleware<T> {
         err
       )
 
-      const message = `❌ *Error:*\n${errorMsg}`
-
       try {
-        await ctx.reply(message, { parse_mode: 'Markdown' })
+        await sendMessage(ctx, buildErrorMessage(errorMsg))
       } catch (replyError) {
         botLogger.critical(
           `${badge('CRITICAL', 'rounded')} ${kv({

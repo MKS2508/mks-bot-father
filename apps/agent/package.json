@@ -30,7 +30,7 @@
     "@mks2508/better-logger": "^4.0.0",
     "@mks2508/mks-bot-father": "workspace:*",
     "@mks2508/shared-logger": "workspace:*",
-    "@mks2508/telegram-bot-manager": "^0.1.1",
+    "@mks2508/telegram-bot-manager": "^0.1.3",
     "@mks2508/telegram-message-builder": "^0.4.0",
     "@mks2508/telegram-message-builder-telegraf": "^0.1.2",
     "chalk": "^5.4.1",

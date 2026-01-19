@@ -367,7 +367,7 @@ Useful for determining the default repository owner before creating repos.`,
       {
         empty: z.object({}).describe('No parameters required')
       },
-      async (args) => {
+      async (_args) => {
         const log = createToolLogger('github.get_authenticated_user')
         const startTime = log.start({})
 

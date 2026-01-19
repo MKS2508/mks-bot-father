@@ -12,6 +12,7 @@ import {
   getBotFatherService,
 } from '@mks2508/mks-bot-father'
 import { createToolLogger } from '../utils/tool-logger.js'
+import { progressEmitter } from '../services/progress-emitter.js'
 
 export const botManagerServer = createSdkMcpServer({
   name: 'bot-manager',
@@ -78,6 +79,8 @@ Returns: bot token, username, and deployment URLs if applicable.`,
             onProgress: (pct, msg, step) => {
               progressEvents.push({ pct, msg, step })
               log.info(`Progress ${pct}%: ${msg}`, { step })
+              // Emit to global progress emitter for real-time Telegram updates
+              progressEmitter.emitProgress(pct, msg, step, { tool: 'create_bot' })
             }
           })
 
@@ -158,6 +161,8 @@ Connects to BotFather via MTProto and retrieves all bots with their tokens.`,
         const reportProgress = (pct: number, msg: string, step?: string) => {
           progressEvents.push({ pct, msg, step })
           log.info(`Progress ${pct}%: ${msg}`, { step })
+          // Emit to global progress emitter for real-time Telegram updates
+          progressEmitter.emitProgress(pct, msg, step, { tool: 'list_bots' })
         }
 
         try {
@@ -177,7 +182,14 @@ Connects to BotFather via MTProto and retrieves all bots with their tokens.`,
           }
 
           reportProgress(40, 'Connected. Fetching bot list...', 'fetch')
-          const result = await botfather.getAllBotsWithTokens()
+          // Note: onProgress support added to BotFatherService - rebuild core package to update types
+          const result = await (botfather.getAllBotsWithTokens as (opts?: { onProgress?: (msg: string) => void }) => ReturnType<typeof botfather.getAllBotsWithTokens>)({
+            onProgress: (msg: string) => {
+              // Parse progress message and emit to global emitter
+              // Messages like "📄 Page 1...", "⏳ [1/5] Fetching @bot...", "✓ [@bot] Got token"
+              progressEmitter.emitSubstep(msg, { tool: 'list_bots' })
+            }
+          })
 
           reportProgress(80, 'Disconnecting...', 'disconnect')
           await botfather.disconnect()
@@ -276,6 +288,8 @@ Can update:
         const reportProgress = (pct: number, msg: string, step?: string) => {
           progressEvents.push({ pct, msg, step })
           log.info(`Progress ${pct}%: ${msg}`, { step })
+          // Emit to global progress emitter for real-time Telegram updates
+          progressEmitter.emitProgress(pct, msg, step, { tool: 'configure_bot' })
         }
 
         try {

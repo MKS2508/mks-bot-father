@@ -96,29 +96,29 @@ export function PromptBox({
             style={{ width: '100%', height: LAYOUT.TEXTAREA_HEIGHT }}
           />
         </box>
+      </box>
 
-        {/* Status row with cyberpunk styling */}
-        <box style={{ flexDirection: 'row', marginTop: 1, alignItems: 'center' }}>
-          <text style={{ fg: THEME.textMuted }}>⟨ </text>
-          <text style={{ fg: currentAgentInfo?.color ?? THEME.cyan }}>
-            {currentAgentInfo?.label ?? 'Build'}
-          </text>
-          <text style={{ fg: THEME.textMuted }}> │ </text>
-          <text style={{ fg: THEME.textDim }}>{modelBadge}</text>
-          {isExecuting && (
-            <>
-              <text style={{ fg: THEME.textMuted }}> │ </text>
-              <text style={{ fg: THEME.yellow }}>◐ processing</text>
-            </>
-          )}
-          {statsBadge && (
-            <>
-              <text style={{ fg: THEME.textMuted }}> │ </text>
-              <text style={{ fg: THEME.green }}>{statsBadge}</text>
-            </>
-          )}
-          <text style={{ fg: THEME.textMuted }}> ⟩</text>
-        </box>
+      {/* Status row - OUTSIDE the bordered box for better spacing when there are messages */}
+      <box style={{ flexDirection: 'row', marginTop: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <text style={{ fg: THEME.textMuted }}>⟨ </text>
+        <text style={{ fg: currentAgentInfo?.color ?? THEME.cyan }}>
+          {currentAgentInfo?.label ?? 'Build'}
+        </text>
+        <text style={{ fg: THEME.textMuted }}> │ </text>
+        <text style={{ fg: THEME.textDim }}>{modelBadge}</text>
+        {isExecuting && (
+          <>
+            <text style={{ fg: THEME.textMuted }}> │ </text>
+            <text style={{ fg: THEME.yellow }}>◐ processing</text>
+          </>
+        )}
+        {statsBadge && (
+          <>
+            <text style={{ fg: THEME.textMuted }}> │ </text>
+            <text style={{ fg: THEME.green }}>{statsBadge}</text>
+          </>
+        )}
+        <text style={{ fg: THEME.textMuted }}> ⟩</text>
       </box>
     </box>
   )

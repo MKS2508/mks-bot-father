@@ -3,7 +3,6 @@
  */
 
 import { z } from 'zod'
-import { BotTimeouts, BotLimits } from '../types/constants.js'
 
 export enum Environment {
   LOCAL = 'local',

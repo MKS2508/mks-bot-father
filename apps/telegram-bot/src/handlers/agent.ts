@@ -3,7 +3,7 @@
  * Uses ProgressManager for visual progress tracking.
  */
 import type { Context } from 'telegraf'
-import { runAgent, type ExecutionContext } from '@mks2508/bot-manager-agent'
+import { runAgent, type ExecutionContext, progressEmitter } from '@mks2508/bot-manager-agent'
 import { memoryStore } from '@mks2508/bot-manager-agent/memory/store'
 import { agentLogger, badge, kv, colors, colorText } from '../middleware/logging.js'
 import {
@@ -12,44 +12,19 @@ import {
 } from '../state/confirmations.js'
 import {
   createOperation,
-  updateStepsFromToolCall,
   completeOperation,
   isOperationCancelled
 } from '../state/index.js'
 import {
-  shouldShowExpandedStats,
   buildAgentResponse,
-  buildStatsMessage,
   buildErrorMessage,
   buildBotCreatedMessage,
   buildOperationCancelledMessage
 } from '../utils/formatters.js'
-import { statsToggleKeyboard, postCreationKeyboard } from '../keyboards.js'
+import { postCreationKeyboard } from '../keyboards.js'
 import { sendMessage } from '../lib/message-helper.js'
-import {
-  createProgressTracker,
-  startProgress,
-  updateProgress,
-  completeProgress,
-  failProgress,
-  removeProgressTracker
-} from '../lib/progress-tracker.js'
 import { StreamingHandler } from '../lib/streaming-handler.js'
 import type { IContextState } from '../types/agent.js'
-
-/** Map tool names to human-readable step descriptions */
-const TOOL_STEP_LABELS: Record<string, string> = {
-  'bot-manager': '🤖 Managing bot...',
-  'github': '📦 Working with GitHub...',
-  'coolify': '🚀 Deploying to Coolify...',
-  'code-executor': '⚙️ Executing code...',
-  'Read': '📖 Reading files...',
-  'Edit': '✏️ Editing files...',
-  'Write': '📝 Writing files...',
-  'Bash': '💻 Running commands...',
-  'Glob': '🔍 Searching files...',
-  'Grep': '🔎 Searching content...',
-}
 
 /** Execute a prompt (internal) */
 export async function executePrompt(
@@ -94,7 +69,17 @@ export async function executePrompt(
   const streamingHandler = new StreamingHandler(ctx.telegram, chatId, threadId)
   await streamingHandler.start('Procesando tu solicitud...')
 
-  // Legacy progress tracker removed - StreamingHandler handles all feedback
+  // Subscribe to MCP tool progress events for real-time updates
+  const unsubscribeProgress = progressEmitter.onProgress(async (event) => {
+    agentLogger.debug(
+      `${badge('PROGRESS', 'rounded')} ${kv({
+        pct: event.percentage,
+        msg: event.message.slice(0, 30),
+        step: event.step
+      })}`
+    )
+    await streamingHandler.onToolProgress(event.percentage || 0, event.message, event.step)
+  })
 
   // Save user message
   await memoryStore.append(userId, {
@@ -245,9 +230,6 @@ export async function executePrompt(
       }
     })
 
-    // Clean up streaming handler
-    await streamingHandler.finish()
-
     // Mark operation complete
     completeOperation(operation.id, result.success)
 
@@ -264,6 +246,11 @@ export async function executePrompt(
     )
 
     if (result.success && result.result) {
+      // Clean up timeouts, unsubscribe from progress, update status
+      unsubscribeProgress()
+      streamingHandler.cleanup()
+      await streamingHandler.finish()
+
       // Format and send response using unified helper
       const messages = buildAgentResponse(result.result)
       for (const message of messages) {
@@ -300,12 +287,19 @@ export async function executePrompt(
 
       // Stats removed - StreamingHandler shows execution summary
     } else {
+      // Clean up, unsubscribe, and show error
+      unsubscribeProgress()
+      streamingHandler.cleanup()
+      await streamingHandler.finish()
+
       // Error handling with formatted message
       const errorMsg = result.errors[0] || 'Task could not be completed'
       await sendMessage(ctx, buildErrorMessage(errorMsg))
     }
   } catch (error) {
-    // Clean up streaming handler
+    // Clean up timeouts and unsubscribe
+    unsubscribeProgress()
+    streamingHandler.cleanup()
     await streamingHandler.finish()
 
     completeOperation(operation.id, false)

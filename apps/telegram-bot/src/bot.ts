@@ -29,9 +29,14 @@ import {
   handleHistory,
   handleCancel,
   handleClear,
+  handleRestart,
   handleCallback,
   handleTextMessage,
-  handleBots
+  handleBots,
+  handleSessions,
+  handleResume,
+  handleContext,
+  handleCompact
 } from './handlers/index.js'
 
 async function main(): Promise<void> {
@@ -87,6 +92,14 @@ async function main(): Promise<void> {
   bot.command('history', (ctx) => handleHistory(ctx))
   bot.command('cancel', handleCancel)
   bot.command('clear', handleClear)
+  bot.command('restart', handleRestart)
+  bot.command('sessions', handleSessions)
+  bot.command('resume', (ctx) => {
+    const sessionId = ctx.message && 'text' in ctx.message ? ctx.message.text.split(' ')[1] : undefined
+    return handleResume(ctx, sessionId)
+  })
+  bot.command('context', handleContext)
+  bot.command('compact', handleCompact)
 
   // Callback queries (inline keyboard)
   bot.on(callbackQuery('data'), handleCallback)
@@ -109,9 +122,52 @@ async function main(): Promise<void> {
 
   botLogger.info('Starting Telegram bot...')
 
-  // launch() returns a Promise that resolves when bot STOPS, not when it starts
-  // So we log success immediately after calling launch() and handle errors in catch
-  bot.launch().catch((err) => {
+  // Launch options - dropPendingUpdates helps avoid processing stale updates on restart
+  const launchOptions = {
+    dropPendingUpdates: true,
+    allowedUpdates: ['message', 'callback_query'] as ('message' | 'callback_query')[]
+  }
+
+  // Retry logic for launch
+  const maxRetries = 3
+  const retryDelayMs = 5000
+
+  const launchWithRetry = async (attempt: number): Promise<void> => {
+    try {
+      await bot.launch(launchOptions)
+    } catch (err) {
+      const error = err as Error
+
+      if (error.name === 'TimeoutError' && attempt < maxRetries) {
+        botLogger.warn(
+          `${badge('RETRY', 'pill')} ${kv({
+            attempt: `${attempt}/${maxRetries}`,
+            reason: 'Timeout connecting to Telegram API',
+            nextRetryIn: `${retryDelayMs / 1000}s`
+          })}`
+        )
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+        return launchWithRetry(attempt + 1)
+      }
+
+      // Check for common issues
+      if (error.message?.includes('409')) {
+        botLogger.error(
+          `${badge('CONFLICT', 'pill')} Another bot instance is already running with this token. ` +
+          'Stop the other instance first or use a different token.'
+        )
+      } else if (error.name === 'TimeoutError') {
+        botLogger.error(
+          `${badge('TIMEOUT', 'pill')} Failed to connect to Telegram API after ${maxRetries} attempts. ` +
+          'Check your network connection or if another instance is running.'
+        )
+      }
+
+      throw err
+    }
+  }
+
+  launchWithRetry(1).catch((err) => {
     botLogger.error(`Failed to start bot:`, err)
     process.exit(1)
   })

@@ -26,9 +26,9 @@
   "dependencies": {
     "@mks2508/better-logger": "^4.0.0",
     "@mks2508/bot-manager-agent": "workspace:*",
-    "@mks2508/shared-logger": "workspace:*",
     "@mks2508/no-throw": "^0.1.0",
     "@mks2508/opentui-image": "^0.2.3",
+    "@mks2508/shared-logger": "workspace:*",
     "@opentui-ui/dialog": "^0.1.2",
     "@opentui/core": "^0.1.70",
     "@opentui/react": "^0.1.70",
@@ -41,6 +41,7 @@
     "opentui-spinner": "^0.0.6",
     "react": "^19.0.0",
     "react-reconciler": "^0.32.0",
+    "sound-play": "^1.1.0",
     "terminal-link": "^5.0.0",
     "zustand": "^5.0.9"
   }

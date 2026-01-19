@@ -76,6 +76,9 @@ export const log = {
   warn: warnFn,
   error: errorFn,
   log: logByLevel,
+  withMetrics: (source: string, message: string, metrics: Record<string, unknown>, data?: Record<string, unknown>) => {
+    infoFn(source, message, { ...data, metrics })
+  },
 }
 
 // Type for metrics (compatible with existing code)

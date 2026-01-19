@@ -58,6 +58,7 @@ interface SplashScreenProps {
   onComplete: () => void
   showHeader?: boolean
   waxinText?: string
+  audioEnabled?: boolean
 }
 
 // Configuraciones individuales por GIF
@@ -383,7 +384,7 @@ function renderAnimatedAscii(ascii: string, frame: number, effect: AsciiEffect, 
   )
 }
 
-export const SplashScreen = ({ config, onComplete, showHeader = false, waxinText: propWaxinText }: SplashScreenProps) => {
+export const SplashScreen = ({ config, onComplete, showHeader = false, waxinText: propWaxinText, audioEnabled = true }: SplashScreenProps) => {
   const renderer = useRenderer()
   const [elapsed, setElapsed] = useState(0)
   const [currentGifIndex, setCurrentGifIndex] = useState(0)
@@ -771,6 +772,10 @@ export const SplashScreen = ({ config, onComplete, showHeader = false, waxinText
                 <text style={{ fg: THEME.yellow, bg: '#0a0a12' }}>{remaining}s</text>
               </>
             )}
+            <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' · '}</text>
+            <text style={{ fg: audioEnabled ? THEME.green : THEME.red, bg: '#0a0a12' }}>
+              {audioEnabled ? '🔊 ON' : '🔇 OFF'}
+            </text>
             <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{'  '}</text>
           </box>
 
@@ -782,7 +787,10 @@ export const SplashScreen = ({ config, onComplete, showHeader = false, waxinText
                 <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>navegar</text>
                 <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' │ '}</text>
                 <text style={{ fg: THEME.purple, bg: '#0a0a12' }}>ESC</text>
-                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' saltar  '}</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' saltar' }</text>
+                <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' │ '}</text>
+                <text style={{ fg: THEME.purple, bg: '#0a0a12' }}>SHIFT+M</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' audio  '}</text>
               </>
             ) : (
               <>
@@ -790,7 +798,10 @@ export const SplashScreen = ({ config, onComplete, showHeader = false, waxinText
                 <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>navegar</text>
                 <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' │ '}</text>
                 <text style={{ fg: THEME.yellow, bg: '#0a0a12' }}>ENTER</text>
-                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' continuar  '}</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' continuar' }</text>
+                <text style={{ fg: THEME.textMuted, bg: '#0a0a12' }}>{' │ '}</text>
+                <text style={{ fg: THEME.yellow, bg: '#0a0a12' }}>SHIFT+M</text>
+                <text style={{ fg: THEME.textDim, bg: '#0a0a12' }}>{' audio  '}</text>
               </>
             )}
           </box>
