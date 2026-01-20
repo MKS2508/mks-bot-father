@@ -7,6 +7,6 @@
 export * from './errors.js'
 export * from './config.types.js'
 export * from './github.types.js'
-export * from './coolify.types.js'
+export type * from '@mks2508/coolify-mks-cli-mcp'
 export * from './pipeline.types.js'
 export * from './progress.types.js'

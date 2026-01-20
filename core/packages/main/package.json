@@ -55,13 +55,14 @@
     "url": "https://github.com/MKS2508/mks-bot-father/issues"
   },
   "dependencies": {
-    "@mks2508/telegram-bot-manager": "^0.1.2",
     "@mks2508/better-logger": "^4.0.0",
+    "@mks2508/coolify-mks-cli-mcp": "/Users/mks/coolify-mks-cli-mcp/core/packages/main",
     "@mks2508/no-throw": "^0.1.0",
     "@mks2508/shared-logger": "workspace:*",
+    "@mks2508/telegram-bot-manager": "^0.1.2",
     "arktype": "^2.1.29",
-    "commander": "^14.0.0",
     "chalk": "^5.4.1",
+    "commander": "^14.0.0",
     "ora": "^8.0.0"
   },
   "devDependencies": {
