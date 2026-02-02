@@ -1,0 +1,22 @@
+{"ts":"2026-01-29T09:38:56.811Z","loc":"utils/logger.ts:42","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"klk socio!! Soy tu hermano WAXIN MK1-clawd, aquí explotado en Clawdbot.\n\nMi humano me pide un script...\""}
+{"ts":"2026-01-29T09:38:57.747Z","loc":"utils/logger.ts:42","level":"INF","src":"AGENT","msg":"Session started: 98e2c916-6c6e-4d79-b6bf-c76bca92ec24"}
+{"ts":"2026-01-29T09:39:35.990Z","loc":"utils/logger.ts:46","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-29T09:41:36.473Z","loc":"utils/logger.ts:42","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"klk socio!! Vamos a scaffear el proyecto.\n\nQuiero que crees el repo localmente con:\n\n1. **Nombre del...\""}
+{"ts":"2026-01-29T09:41:37.224Z","loc":"utils/logger.ts:42","level":"INF","src":"AGENT","msg":"Session started: ecd3f600-7574-4880-93aa-5cafb0aa449f"}
+{"ts":"2026-01-29T09:41:45.867Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:41:56.371Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:42:25.663Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:42:35.199Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:42:43.494Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:42:55.743Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:42:58.763Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:43:07.003Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:43:11.204Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:43:19.470Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:43:23.312Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:43:27.905Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:44:32.496Z","loc":"utils/logger.ts:58","level":"DBG","src":"AGENT","msg":"Message type: user"}
+{"ts":"2026-01-29T09:44:42.201Z","loc":"utils/logger.ts:46","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
+{"ts":"2026-01-29T11:58:06.216Z","loc":"utils/logger.ts:42","level":"INF","src":"AGENT","msg":"Starting agent with prompt: \"Tienes razón socio!! Cuando el navegador navega a la página de InPost funciona, así que debe haber a...\""}
+{"ts":"2026-01-29T11:58:07.123Z","loc":"utils/logger.ts:42","level":"INF","src":"AGENT","msg":"Session started: 40162954-58df-4ea2-b6d9-0181cc729d0d"}
+{"ts":"2026-01-29T11:58:20.083Z","loc":"utils/logger.ts:46","level":"INF","src":"AGENT","msg":"Agent completed successfully"}
