@@ -67,6 +67,7 @@ export interface AgentOptions {
   maxBudgetUsd?: number
   permissionMode?: PermissionModeType
   includePartial?: boolean
+  maxThinkingTokens?: number
   onMessage?: (message: unknown) => void
   onProgress?: (event: ProgressEvent) => void
   resumeSession?: string

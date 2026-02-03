@@ -11,6 +11,7 @@ export { coolifyServer } from './coolify.js'
 export { codeExecutorServer } from './code-executor.js'
 export { scaffolderServer } from './scaffolder.js'
 export { telegramMessengerServer } from './telegram-messenger.js'
+export { getZaiMcpServers, zaiToolPatterns, isZaiAvailable } from './zai.js'
 
 import { botManagerServer } from './bot-manager.js'
 import { envManagerServer } from './env-manager.js'
@@ -19,7 +20,9 @@ import { coolifyServer } from './coolify.js'
 import { codeExecutorServer } from './code-executor.js'
 import { scaffolderServer } from './scaffolder.js'
 import { telegramMessengerServer } from './telegram-messenger.js'
+import { getZaiMcpServers } from './zai.js'
 
+// Base MCP servers
 export const mcpServers = {
   'bot-manager': botManagerServer,
   'env-manager': envManagerServer,
@@ -27,7 +30,9 @@ export const mcpServers = {
   'coolify': coolifyServer,
   'code-executor': codeExecutorServer,
   'scaffolder': scaffolderServer,
-  'telegram-messenger': telegramMessengerServer
+  'telegram-messenger': telegramMessengerServer,
+  // z.ai MCP servers (added dynamically if API key is available)
+  ...getZaiMcpServers()
 }
 
 export const allAllowedTools = [
@@ -96,5 +101,11 @@ export const allAllowedTools = [
   'mcp__telegram-messenger__delete_message',
   'mcp__telegram-messenger__ask_user_question',
   'mcp__telegram-messenger__update_progress',
-  'mcp__telegram-messenger__format_tool_result'
+  'mcp__telegram-messenger__format_tool_result',
+
+  // z.ai MCP tools (wildcard patterns)
+  'mcp__web-search-prime__*',
+  'mcp__web-reader__*',
+  'mcp__vision-mcp__*',
+  'mcp__zread-mcp__*'
 ]

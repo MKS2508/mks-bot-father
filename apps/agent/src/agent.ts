@@ -17,6 +17,7 @@ interface ContentBlock {
   name?: string
   input?: unknown
   id?: string
+  tool_use_id?: string
   content?: string | unknown
 }
 
@@ -100,6 +101,7 @@ export async function runAgent(
     maxBudgetUsd = 10.0,
     permissionMode = 'acceptEdits',
     includePartial = false,
+    maxThinkingTokens, // Maximum thinking tokens (extended reasoning)
     onMessage,
     onProgress,
     resumeSession,
@@ -115,6 +117,7 @@ export async function runAgent(
 
   let sessionId = ''
   const toolCalls: ToolCallLog[] = []
+  const toolUseIndexMap = new Map<string, number>()
   const errors: string[] = []
   const permissionDenials: PermissionDenial[] = []
   let finalResult: string | null = null
@@ -132,6 +135,7 @@ export async function runAgent(
       maxBudgetUsd,
       permissionMode,
       includePartialMessages: includePartial,
+      maxThinkingTokens: maxThinkingTokens || 200000, // Maximum extended thinking
       mcpServers,
       agents: subagents,
       allowedTools: allAllowedTools,
@@ -139,6 +143,18 @@ export async function runAgent(
       ...(forkSession && { forkSession: true }),
       ...(additionalDirectories && { additionalDirectories })
     }
+
+    // Debug: Log configuration
+    logger.debug('Agent SDK Configuration', {
+      model,
+      cwd: workingDirectory,
+      permissionMode,
+      allowedToolsCount: allAllowedTools.length,
+      allowedTools: allAllowedTools.slice(0, 20), // Log first 20 tools
+      mcpServersCount: Object.keys(mcpServers).length,
+      mcpServers: Object.keys(mcpServers),
+      hasSubagents: Object.keys(subagents).length > 0
+    })
 
     for await (const message of query({
       prompt: userPrompt,
@@ -152,6 +168,9 @@ export async function runAgent(
         type: string
         subtype?: string
         session_id?: string
+        message?: {
+          content?: ContentBlock[]
+        }
         content?: ContentBlock[]
         result?: string
         errors?: string[]
@@ -169,25 +188,47 @@ export async function runAgent(
           break
 
         case 'assistant':
-          if (Array.isArray(msg.content)) {
-            for (const block of msg.content) {
+          // In TypeScript SDK, content is nested: msg.message.content
+          const assistantContent = msg.message?.content || msg.content
+          if (Array.isArray(assistantContent)) {
+            for (const block of assistantContent) {
               if (block.type === 'text' && block.text) {
                 logger.assistant(block.text)
               } else if (block.type === 'tool_use' && block.name) {
                 logger.tool(`Tool request: ${block.name}`)
+                logger.debug(`Tool use details`, {
+                  tool: block.name,
+                  hasInput: !!block.input,
+                  inputPreview: block.input ? JSON.stringify(block.input).slice(0, 200) : undefined,
+                  id: block.id
+                })
+                const toolIndex = toolCalls.length
+                if (block.id) {
+                  toolUseIndexMap.set(block.id, toolIndex)
+                }
                 toolCalls.push({
                   tool: block.name,
                   input: block.input,
                   result: ''
                 })
-              } else if (block.type === 'tool_result' && block.content) {
-                // Extract progress events from tool results
-                try {
+              } else if (block.type === 'tool_result' && block.tool_use_id) {
+                const toolIndex = toolUseIndexMap.get(block.tool_use_id)
+                if (toolIndex !== undefined) {
                   const content = typeof block.content === 'string'
                     ? block.content
                     : JSON.stringify(block.content)
 
-                  const parsed = JSON.parse(content) as {
+                  toolCalls[toolIndex].result = content
+                  logger.success(`Tool result received for ${toolCalls[toolIndex].tool}`)
+                }
+
+                // Extract progress events from tool results
+                try {
+                  const parsedContent = typeof block.content === 'string'
+                    ? block.content
+                    : JSON.stringify(block.content)
+
+                  const parsed = JSON.parse(parsedContent) as {
                     progress?: Array<{ pct: number; msg: string; step?: string }>
                     [key: string]: unknown
                   }
