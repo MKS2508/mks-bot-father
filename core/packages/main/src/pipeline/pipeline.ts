@@ -19,6 +19,7 @@ import {
   type IScaffoldStepResult,
   type IGitHubStepResult,
   type ICoolifyStepResult,
+  TemplateType,
 } from '../types/index.js'
 import { AppErrorCode } from '../types/errors.js'
 
@@ -93,6 +94,12 @@ export class Pipeline {
       result.botToken = botResult.value.token
       result.botUsername = botResult.value.username
       fileLog.info('PIPELINE_STEP', 'BotFather step completed', {
+        botUsername: result.botUsername
+      })
+    } else if (options.existingBotToken) {
+      result.botToken = options.existingBotToken
+      result.botUsername = options.existingBotUsername
+      fileLog.info('PIPELINE_STEP', 'Using existing bot credentials', {
         botUsername: result.botUsername
       })
     }
@@ -228,7 +235,9 @@ export class Pipeline {
     log.info('Step 2: Scaffolding project with bunspace')
     options.onProgress?.(26, '[Scaffold] Initializing project scaffold', 'scaffold_init')
 
-    const projectPath = join(process.cwd(), options.botName)
+    const basePath = options.targetPath || process.cwd()
+    const projectPath = join(basePath, options.botName)
+    const template = options.template || TemplateType.TelegramBot
 
     if (existsSync(projectPath)) {
       return err({
@@ -238,7 +247,7 @@ export class Pipeline {
     }
 
     try {
-      options.onProgress?.(30, '[Scaffold] Running bunspace template', 'scaffold_run')
+      options.onProgress?.(30, `[Scaffold] Running bunspace template: ${template}`, 'scaffold_run')
 
       const proc = Bun.spawn(
         [
@@ -247,13 +256,13 @@ export class Pipeline {
           'bunspace',
           options.botName,
           '--template',
-          'telegram-bot',
+          template,
           '--yes',
         ],
         {
           stdout: 'pipe',
           stderr: 'pipe',
-          cwd: process.cwd(),
+          cwd: basePath,
         }
       )
 
@@ -365,13 +374,14 @@ export class Pipeline {
 
     const config = this.configService.get()
     const serverUuid = options.coolifyServer || config.coolify?.defaultServer
-    const destinationUuid =
-      options.coolifyDestination || config.coolify?.defaultDestination
+    const destinationUuid = options.coolifyDestination || config.coolify?.defaultDestination
+    const projectUuid = config.coolify?.defaultProject
+    const environmentUuid = config.coolify?.defaultEnvironment
 
-    if (!serverUuid || !destinationUuid) {
+    if (!serverUuid || !destinationUuid || !projectUuid || !environmentUuid) {
       return err({
         code: AppErrorCode.COOLIFY_ERROR,
-        message: 'Coolify server and destination not configured',
+        message: 'Coolify server, destination, project and environment not configured',
       })
     }
 
@@ -391,6 +401,8 @@ export class Pipeline {
       description: options.botDescription,
       serverUuid,
       destinationUuid,
+      projectUuid,
+      environmentUuid,
       githubRepoUrl: pipelineResult.githubRepoUrl,
     }, createAppProgress)
 

@@ -1,19 +1,30 @@
 {
   "name": "@mks2508/bot-manager-agent",
   "version": "0.1.0",
+  "description": "Claude AI Agent with MCP tools for bot management and DevOps automation",
   "type": "module",
-  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./cli": "./src/cli.ts",
-    "./memory/*": "./src/memory/*.ts",
-    "./utils/*": "./src/utils/*.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "bot-manager-agent": "./dist/cli.js"
   },
   "scripts": {
     "dev": "bun --watch src/cli.ts",
     "start": "bun src/cli.ts",
     "start:telegram": "bun --filter @mks2508/telegram-bot start",
-    "build": "bun build ./src/cli.ts --outfile ./dist/agent.js --target node",
+    "build": "bun run build:lib && bun run build:cli",
+    "build:lib": "tsgo -p tsconfig.build.json",
+    "build:cli": "bun build ./src/cli.ts --outfile ./dist/cli.js --target node",
+    "prepublishOnly": "bun run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -24,15 +35,38 @@
     "debug:github": "bun run src/debug/github-debug.ts",
     "debug:all": "bun run debug:coolify && bun run debug:github"
   },
+  "keywords": [
+    "claude",
+    "agent",
+    "mcp",
+    "telegram",
+    "bot",
+    "ai",
+    "devops",
+    "automation"
+  ],
+  "author": "MKS2508",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MKS2508/mks-bot-father",
+    "directory": "apps/agent"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.1",
     "@anthropic-ai/sdk": "^0.71.2",
     "@mks2508/better-logger": "^4.0.0",
-    "@mks2508/mks-bot-father": "workspace:*",
-    "@mks2508/shared-logger": "workspace:*",
+    "@mks2508/mks-bot-father": "^0.2.0",
     "@mks2508/telegram-bot-manager": "^0.1.3",
     "@mks2508/telegram-message-builder": "^0.4.0",
     "@mks2508/telegram-message-builder-telegraf": "^0.1.2",
+    "@telegraf/types": "^9.2.1",
     "chalk": "^5.4.1",
     "dotenv": "^16.4.7",
     "ora": "^8.0.0",

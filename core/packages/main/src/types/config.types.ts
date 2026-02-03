@@ -29,6 +29,8 @@ export const CoolifyConfigSchema = type({
   'token?': 'string',
   'defaultServer?': 'string',
   'defaultDestination?': 'string',
+  'defaultProject?': 'string',
+  'defaultEnvironment?': 'string',
 })
 
 /**

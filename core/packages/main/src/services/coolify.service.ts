@@ -10,7 +10,7 @@
  * @module
  */
 
-import { ok, err, type Result, type ResultError } from '@mks2508/no-throw'
+import { ok, err, isErr, type Result, type ResultError } from '@mks2508/no-throw'
 import { createLogger, log as fileLog } from '../utils/index.js'
 import { getConfigService } from './config.service.js'
 import { getCoolifyService as getCoolifyMcpService } from '@mks2508/coolify-mks-cli-mcp'
@@ -90,7 +90,7 @@ export class CoolifyService {
 
     // Initialize the MCP service
     const initResult = await this.mcpService.init()
-    if (initResult.isErr?.()) {
+    if (isErr(initResult)) {
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: initResult.error.message })
     }
 
@@ -144,7 +144,7 @@ export class CoolifyService {
       onProgress?.(Math.round(55 + pct * 0.35), msg)
     })
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Deployment failed: ${error.message}`)
       fileLog.error('COOLIFY', 'Deployment failed', {
@@ -192,7 +192,7 @@ export class CoolifyService {
     })
 
     onProgress?.(15, `Validating server ${options.serverUuid.slice(0, 8)}...`, 'validate_server')
-    onProgress?.(25, `Configuring destination ${options.destinationUuid.slice(0, 8)}...`, 'configure_dest')
+    onProgress?.(25, `Configuring destination ${options.destinationUuid?.slice(0, 8) ?? 'default'}...`, 'configure_dest')
     onProgress?.(35, `Setting up Git: ${options.githubRepoUrl}`, 'setup_git')
     onProgress?.(50, `Build pack: ${options.buildPack || 'nixpacks'}`, 'build_pack')
     onProgress?.(65, 'Sending creation request to Coolify API...', 'api_request')
@@ -201,7 +201,7 @@ export class CoolifyService {
       onProgress?.(Math.round(65 + pct * 0.2), msg)
     })
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to create application: ${error.message}`)
       fileLog.error('COOLIFY', 'Failed to create application', {
@@ -243,7 +243,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.setEnvironmentVariables(appUuid, envVars)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to set env vars: ${error.message}`)
       fileLog.error('COOLIFY', 'Failed to set environment variables', {
@@ -272,7 +272,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.getApplicationStatus(appUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       fileLog.error('COOLIFY', 'Get application status failed', {
         appUuid,
@@ -300,7 +300,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.listServers()
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       fileLog.error('COOLIFY', 'List servers failed', { error: error.message })
       return err({ code: AppErrorCode.COOLIFY_ERROR, message: error.message })
@@ -328,7 +328,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.getServer(serverUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to get server: ${error.message}`)
       fileLog.error('COOLIFY', 'Get server failed', {
@@ -359,7 +359,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.listProjects()
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to list projects: ${error.message}`)
       fileLog.error('COOLIFY', 'List projects failed', { error: error.message })
@@ -386,7 +386,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.listTeams()
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to list teams: ${error.message}`)
       fileLog.error('COOLIFY', 'List teams failed', { error: error.message })
@@ -415,7 +415,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.getServerDestinations(serverUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       fileLog.error('COOLIFY', 'Get server destinations failed', {
         serverUuid,
@@ -449,7 +449,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.listApplications(teamId, projectId)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to list applications: ${error.message}`)
       fileLog.error('COOLIFY', 'List applications failed', { error: error.message })
@@ -479,7 +479,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.deleteApplication(appUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to delete application: ${error.message}`)
       fileLog.error('COOLIFY', 'Delete application failed', {
@@ -514,7 +514,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.updateApplication(appUuid, options)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to update application: ${error.message}`)
       fileLog.error('COOLIFY', 'Update application failed', {
@@ -549,7 +549,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.getApplicationLogs(appUuid, options)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to get logs: ${error.message}`)
       fileLog.error('COOLIFY', 'Get logs failed', {
@@ -583,7 +583,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.getApplicationDeploymentHistory(appUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to get deployment history: ${error.message}`)
       fileLog.error('COOLIFY', 'Get deployment history failed', {
@@ -617,7 +617,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.startApplication(appUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to start application: ${error.message}`)
       fileLog.error('COOLIFY', 'Start application failed', {
@@ -650,7 +650,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.stopApplication(appUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to stop application: ${error.message}`)
       fileLog.error('COOLIFY', 'Stop application failed', {
@@ -683,7 +683,7 @@ export class CoolifyService {
 
     const result = await this.mcpService.restartApplication(appUuid)
 
-    if (result.isErr?.()) {
+    if (isErr(result)) {
       const error = result.error
       log.error(`Failed to restart application: ${error.message}`)
       fileLog.error('COOLIFY', 'Restart application failed', {
@@ -715,3 +715,5 @@ export function getCoolifyService(): CoolifyService {
   }
   return instance
 }
+
+export type { ICoolifyServer, ICoolifyDestination }

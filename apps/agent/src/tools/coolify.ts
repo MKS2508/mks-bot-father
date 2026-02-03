@@ -1125,6 +1125,10 @@ The GitHub repository must be accessible via the configured GitHub App.`,
           .describe('Server UUID to deploy to'),
         destinationUuid: z.string().uuid('Invalid destination UUID format')
           .describe('Destination UUID (Docker network)'),
+        projectUuid: z.string().uuid('Invalid project UUID format')
+          .describe('Project UUID to create the application in'),
+        environmentUuid: z.string().uuid('Invalid environment UUID format')
+          .describe('Environment UUID within the project'),
         githubRepoUrl: z.string()
           .describe('GitHub repository URL (e.g., https://github.com/user/repo)'),
         description: z.string()
@@ -1168,6 +1172,8 @@ The GitHub repository must be accessible via the configured GitHub App.`,
             description: args.description,
             serverUuid: args.serverUuid,
             destinationUuid: args.destinationUuid,
+            projectUuid: args.projectUuid,
+            environmentUuid: args.environmentUuid,
             githubRepoUrl: args.githubRepoUrl,
             branch: args.branch || 'main',
             buildPack: args.buildPack || 'nixpacks'

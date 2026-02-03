@@ -1,7 +1,7 @@
 /**
  * Logger utility for the Bot Manager Agent.
  *
- * Provides console output with colors + JSON file logging using @mks2508/shared-logger.
+ * Provides console output with colors + JSON file logging.
  */
 
 import {
@@ -12,7 +12,7 @@ import {
   type LogLevel,
   type JsonLogEntry,
   LOG_LEVEL_PRIORITY
-} from '@mks2508/shared-logger'
+} from '../lib/logger/index.js'
 
 const consoleLevel: LogLevel = process.env.DEBUG ? 'DBG' : 'INF'
 
